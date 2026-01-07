@@ -52,3 +52,9 @@ N_RANK_LP = { v: k for k, v in RANK_LP.items() }
 #     "IV"  : 4
 # }
 
+TRANSLATE_ACCOUNT_DTO = {
+    "puuid"    : "puuid",
+    "gameName" : "username",
+    "tagLine"  : "tag"
+}
+

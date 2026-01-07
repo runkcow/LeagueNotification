@@ -6,13 +6,12 @@ import config
 import helper
 from bot import GUILD_LIST, tree
 import DAO.accountDAO as accountDAO
-import riotAPI
+import API.riotAPI as riotAPI
 
-# TODO: make this merge username and tag
 async def accountautocomplete(interaction: discord.Interaction, current: str) -> list:
-    accounts = accountDAO.get_account()
-    matches = [account.username for account in accounts if current.lower() in accounts.username.lower()][:25]
-    return [discord.app_commands.Choice(name=name, value=name) for name in matches]
+    accounts = accountDAO.get_server_accounts(interaction.guild_id)
+    matches = [account for account in accounts if current.lower() in f"{account["username"]}#{account["tag"]}".lower()][:25]
+    return [discord.app_commands.Choice(name=f"{account["username"]}#{account["tag"]}", value=account["puuid"]) for account in matches]
 
 @tree.command(name="acountadd", description="Add account to track", guilds=GUILD_LIST)
 @discord.app_commands.describe(
@@ -58,11 +57,29 @@ async def accountadd(interaction: discord.Interaction, username: str, tag: str, 
         await interaction.response.send_message("Internal error", ephemeral=True)
         print("Error @ accountDAO.add_account:", e)
     
+@tree.command(name="accountchngchnl", description="Change output channel of account", guilds=GUILD_LIST)
+@discord.app_commands.describe(
+    puuid="Account to update",
+    channel="New output channel"
+)
+async def accountchangechannel(interaction: discord.Interaction, puuid: str, channel: discord.TextChannel):
+    try:
+        accountDAO.update_account_channel(interaction.guild_id, puuid, channel.id)
+        await interaction.response.send_message("Output channel successfully changed", ephemeral=True)
+    except sqlite3.Error as e:
+        await interaction.response.send_message("Internal error", ephemeral=True)
+        print("Error @ accountDAAO.update_account_channel:", e)
+accountchangechannel.autocomplete("puuid")(accountautocomplete)
+
 @tree.command(name="accountrmv", description="Remove account from tracking", guilds=GUILD_LIST)
 @discord.app_commands.describe(
     puuid="Account to remove"
 )
 async def accountremove(interaction: discord.Interaction, puuid: str):
-    # TODO: complete this
-    return
+    try:
+        accountDAO.remove_account(interaction.guild_id, puuid)
+        await interaction.response.send_message("Account successfully removed", ephemeral=True)
+    except sqlite3.Error as e:
+        await interaction.response.send_message("Internal error", ephemeral=True)
+        print("Error @ accountDAO.remove_account:", e)
 accountremove.autocomplete("puuid")(accountautocomplete)

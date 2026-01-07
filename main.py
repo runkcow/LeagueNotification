@@ -3,7 +3,7 @@ import config
 
 from bot import client, tree
 
-import Commands.account
+import Services.account
 
 @client.event
 async def on_ready():
