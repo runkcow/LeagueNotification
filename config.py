@@ -22,7 +22,7 @@ REGIONS = {
     "SG2"  : "sg2.api.riotgames.com",
     "TH2"  : "th2.api.riotgames.com",
     "TW2"  : "tw2.api.riotgames.com",
-    "VN2"  : "vn2.api.riotgames.com"
+    "VN2"  : "vn2.api.riotgames.com",
 }
 
 TIER_LP = {
@@ -41,16 +41,16 @@ RANK_LP = {
     "I"   : 300,
     "II"  : 200,
     "III" : 100,
-    "IV"  : 0
+    "IV"  : 0,
 }
 N_RANK_LP = { v: k for k, v in RANK_LP.items() }
 
-# RANK_NUMERICAL = {
-#     "I"   : 1,
-#     "II"  : 2,
-#     "III" : 3,
-#     "IV"  : 4
-# }
+RANK_NUMERICAL = {
+    "I"   : 1,
+    "II"  : 2,
+    "III" : 3,
+    "IV"  : 4
+}
 
 TRANSLATE_ACCOUNT_DTO = {
     "puuid"    : "puuid",
@@ -58,3 +58,4 @@ TRANSLATE_ACCOUNT_DTO = {
     "tagLine"  : "tag"
 }
 
+PC_TEXT_WRAP = 45

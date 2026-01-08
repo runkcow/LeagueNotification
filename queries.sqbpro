@@ -1,10 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="data.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="739"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title=".Browsables" custom_title="0" dock_id="1" table="0,10:Browsables"/><dock_state state="000000ff00000000fd00000001000000020000047b0000030afc0100000001fb000000160064006f0063006b00420072006f007700730065003101000000000000047b0000011e00ffffff0000047b0000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings><table schema="" name="Browsables" show_row_id="0" encoding="" plot_x_axis="" unlock_view_pk="_rowid_" freeze_columns="0"><sort/><column_widths/><filter_values/><conditional_formats/><row_id_formats/><display_formats/><hidden_columns/><plot_y_axes/><global_filter/></table></browse_table_settings></tab_browse><tab_sql><sql name="SQL 1">
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="data.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="739"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title=".Browsables" custom_title="0" dock_id="1" table="0,10:Browsables"/><dock_state state="000000ff00000000fd00000001000000020000047b0000030afc0100000001fb000000160064006f0063006b00420072006f007700730065003101000000000000047b0000011e00ffffff0000047b0000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings><table schema="" name="Browsables" show_row_id="0" encoding="" plot_x_axis="" unlock_view_pk="_rowid_" freeze_columns="0"><sort/><column_widths/><filter_values/><conditional_formats/><row_id_formats/><display_formats/><hidden_columns/><plot_y_axes/><global_filter/></table></browse_table_settings></tab_browse><tab_sql><sql name="SQL 1*">
 CREATE TABLE IF NOT EXISTS accounts (
 	puuid TEXT NOT NULL PRIMARY KEY, /* account puuid */
 	username TEXT NOT NULL,
 	tag TEXT NOT NULL,
-	elo INTEGER NOT NULL, /* 0 if unranked */
-	wins INTEGER NOT NULL,
+	elo INTEGER NOT NULL, /* 0 if unranked */
+	wins INTEGER NOT NULL,
 	losses INTEGER NOT NULL,
 	region TEXT NOT NULL
 );
@@ -12,21 +12,21 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS servers (
 	puuid TEXT NOT NULL,
 	server TEXT NOT NULL,
-	channel TEXT NOT NULL,
-	message TEXT, /* null is indication of not in match */
+	channel TEXT NOT NULL,
+	message TEXT, /* null is indication of not in match */
 	matchid TEXT, /* likewise */
 	PRIMARY KEY (puuid, server),
 	FOREIGN KEY (puuid) REFERENCES accounts(puuid) ON DELETE CASCADE
 );
 
-/* gamedata consists of various information about the user's teammates and opponents */
-/* this data will not change after the game ends */
+/* for now, the only purpose of this table is to track lp changes */
+/* might add more in the future */
 CREATE TABLE IF NOT EXISTS matches (
-	id TEXT NOT NULL PRIMARY KEY, /* match id */
-	lp INTEGER, /* null is indication of completion */
-	gamedata TEXT NOT NULL, /* JSON */
-	account TEXT NOT NULL, 
-	FOREIGN KEY (account) REFERENCES accounts(puuid) ON DELETE CASCADE
+	puuid TEXT NOT NULL, 
+	matchid TEXT NOT NULL, 
+	lp INTEGER, 
+	PRIMARY KEY (puuid, matchid)
+	FOREIGN KEY (puuid) REFERENCES accounts(puuid) ON DELETE CASCADE
 );
 </sql><sql name="SQL 2">DROP TABLE IF EXISTS players;
 DROP TABLE IF EXISTS accounts;

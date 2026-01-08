@@ -2,36 +2,36 @@
 from discord.ext import tasks
 import sqlite3
 
-import DAO.accountDAO as accountDAO
-import API.riotAPI as riotAPI
+from dao import account_dao
+from api import riot_api
 import config
 
 @tasks.loop(hours=24)
-async def updateAccountDetails():
+async def update_account_details():
     try:
-        accounts = accountDAO.get_account()
+        accounts = account_dao.get_accounts()
         for account in accounts:
-            res = riotAPI.get_username(account["puuid"])
-            default = riotAPI.status_default(res)
-            if not default:
-                print(default)
+            res = riot_api.get_username(account["puuid"])
+            err = riot_api.status_err(res)
+            if not err:
+                print(err)
                 continue
             data = res.json()
             dict = { config.TRANSLATE_ACCOUNT_DTO[k]: v for k, v in data.items() }
             if any(account[k] != v for k, v in data.items()):
                 try:
-                    accountDAO.update_account(account["puuid"], dict)
+                    account_dao.update_account(account["puuid"], dict)
                 except sqlite3.Error as e: # might require more succinct error deteciton
                     print("Error @ accountDAO.update_account:", e)
     except sqlite3.Error as e:
         print("Error @ accountDAO.get_account:", e)
 
 @tasks.loop(minutes=1)
-async def checkGameStatus():
+async def check_game_status():
     try:
-        accounts = accountDAO.get_accounts()
+        accounts = account_dao.get_accounts()
         for account in accounts:
-            servers = accountDAO.get_account_servers(account["puuid"])
+            servers = account_dao.get_account_servers(account["puuid"])
             # TODO: finish this
     except sqlite3.Error as e:
         print("Error @ accountDAO.get_account:", e)
