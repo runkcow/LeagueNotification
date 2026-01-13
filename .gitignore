@@ -1,2 +1,4 @@
 .env
 *.txt
+__pycache__/
+*.db-journal

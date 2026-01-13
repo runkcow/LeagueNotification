@@ -1,5 +1,9 @@
 
-from dbconn import getconn
+from dao.dbconn import getconn
+
+def get_account(puuid: str) -> dict:
+    with getconn() as conn:
+        return conn.execute("SELECT * FROM accounts WHERE puuid = ?", (puuid, )).fetchone()
 
 def get_accounts() -> list:
     with getconn() as conn:
@@ -7,7 +11,7 @@ def get_accounts() -> list:
 
 def get_account_servers(puuid: str) -> list:
     with getconn() as conn:
-        return conn.execute("SELECT a.*, s.server, s.channel, s.message, s.matchid FROM accounts AS a JOIN servers AS s on a.puuid = s.puuid WHERE a.puuid = ?", (puuid, )).fetchall()
+        return conn.execute("SELECT a.*, s.server, s.channel, s.message FROM accounts AS a JOIN servers AS s on a.puuid = s.puuid WHERE a.puuid = ?", (puuid, )).fetchall()
 
 def get_server_accounts(server: str) -> list:
     with getconn() as conn:
@@ -29,7 +33,11 @@ def update_account_channel(server: str, puuid: str, channel: str):
     with getconn() as conn:
         conn.execute("UPDATE servers SET channel = ? WHERE puuid = ? AND server = ?", (channel, puuid, server))
 
-MUTABLE = { "username", "tag", "elo", "wins", "losses", "region" }
+def update_account_match_id(puuid: str, match_id: str):
+    with getconn() as conn:
+        conn.execute("UPDATE accounts SET match_id = ? WHERE puuid = ?", (match_id, puuid))
+
+MUTABLE = { "username", "tag", "elo", "wins", "losses", "region", "match_id" }
 def update_account(puuid: str, dict: dict):
     updates = { k: v for k, v in dict.items() if k in MUTABLE }
     if not updates:

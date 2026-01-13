@@ -4,10 +4,10 @@ import config
 def get_elo (tier: str, rank: str, lp: int) -> int:
     return config.TIER_LP[tier] + config.RANK_LP[rank] + lp
 
+# TODO: observe this, check if it works
 def _get_tier (elo) -> tuple:
-    lp = elo % 100
-    rank = config.N_RANK_LP[elo - lp]
-    tier = config.N_TIER_LP[elo - config.RANK_LP[rank]] 
+    (tier, rank) = config.ELO_DISPLAY[-1] if elo // 100 >= len(config.ELO_DISPLAY) else config.ELO_DISPLAY[elo // 100]
+    lp = elo - config.TIER_LP[tier] - config.RANK_LP[rank]
     return (tier, rank, lp)
 
 def display_elo (elo) -> str:

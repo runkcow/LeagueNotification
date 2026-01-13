@@ -6,6 +6,8 @@ load_dotenv(dotenv_path=".env")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_KEY = os.getenv("API_KEY")
 
+DEV_SERVERS = [ 909589494490087494, 415003906951610378 ]
+
 REGIONS = {
     "BR1"  : "br1.api.riotgames.com",
     "EUN1" : "eun1.api.riotgames.com",
@@ -25,25 +27,31 @@ REGIONS = {
     "VN2"  : "vn2.api.riotgames.com",
 }
 
+# TODO: generate grandmaster and challenger cutoffs on the fly
 TIER_LP = {
-    "IRON"     : 0,
-    "BRONZE"   : 400,
-    "SILVER"   : 800,
-    "GOLD"     : 1200,
-    "PLATINUM" : 1600,
-    "EMERALD"  : 2000,
-    "DIAMOND"  : 2400,
-    "MASTER"   : 2800,
+    "IRON"        : 300,
+    "BRONZE"      : 700,
+    "SILVER"      : 1100,
+    "GOLD"        : 1500,
+    "PLATINUM"    : 1900,
+    "EMERALD"     : 2300,
+    "DIAMOND"     : 2700,
+    "MASTER"      : 2800, 
+    "GRANDMASTER" : 2800,
+    "CHALLENGER"  : 2800,
 }
-N_TIER_LP = { v: k for k, v in TIER_LP.items() }
+L_TIER_LP = { k : v for k, v in TIER_LP.items() if k != "MASTER" or k != "GRANDMASTER" or k != "CHALLENGER" }
 
 RANK_LP = {
-    "I"   : 300,
-    "II"  : 200,
-    "III" : 100,
-    "IV"  : 0,
+    "IV"  : -300,
+    "III" : -200,
+    "II"  : -100,
+    "I"   : 0,
 }
-N_RANK_LP = { v: k for k, v in RANK_LP.items() }
+
+# index 0 means 0 elo, index 15 means 1500 elo
+ELO_DISPLAY = [ (T, R) for R in RANK_LP for T in L_TIER_LP ]
+ELO_DISPLAY.append(("MASTER", "I")) # 2800 elo and above is MASTER I
 
 RANK_NUMERICAL = {
     "I"   : 1,
@@ -59,3 +67,27 @@ TRANSLATE_ACCOUNT_DTO = {
 }
 
 PC_TEXT_WRAP = 45
+
+TEAM_NAME_LEN = 4
+TEAM_ID = {
+    100 : "BLUE",
+    200 : "RED",
+}
+
+SUB_TEAM_LEN = 8
+SUB_TEAM_ID = {
+    0 : None,
+    1 : "PORO",
+    2 : "MINION",
+    3 : "SCUTTLE",
+    4 : "KRUGS",
+    5 : "RAPTOR",
+    6 : "SENTINEL",
+    7 : "WOLVES",
+    8 : "GROMP",
+}
+
+TEAM_DISPLAY_NAME = {
+    **TEAM_ID,
+    **SUB_TEAM_ID,
+}
