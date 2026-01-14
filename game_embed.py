@@ -1,4 +1,6 @@
 
+# TODO: move this file to some folder, or move the contents to tasks.py
+
 import math
 from abc import ABC, abstractmethod
 import discord
@@ -14,12 +16,15 @@ CHAMPION_ID = riot_api.get_champion_id()
 
 def get_ranked_info(region: str, puuid: str) -> dict:
     res = riot_api.get_elo(region, puuid)
+    if res.status_code == 400: # TODO: I don't think this is correct, study how streamer mode affects the api calls
+        return api_adapter.convert_ranked_data()
     err = riot_api.status_err(res)
     if not err is None:
         print("Bad status @ game_embed.get_ranked_info riot_api.get_elo:", err)
         return {}
     return api_adapter.convert_ranked_data(next((d for d in res.json() if d["queueType"] == "RANKED_SOLO_5x5"), None))
 
+# TODO: an error is appearing here, something is locking up the bot
 def get_current_game_data(account: dict) -> dict:
     res = riot_api.get_current_game(account["region"], account["puuid"])
     if res.status_code == 404:
@@ -57,8 +62,8 @@ def get_past_game_data(account: dict, match_id: str) -> dict:
         "tag": account["tag"],
         "region": account["region"],
         "old_elo": account["elo"],
-        "matchid": data["metadata"]["matchId"],
-        "queueid": data["info"]["queueId"],
+        "match_id": data["metadata"]["matchId"],
+        "queue_id": data["info"]["queueId"],
         "start_time": data["info"]["gameStartTimestamp"] // 1000,
         "end_time": data["info"]["gameEndTimestamp"] // 1000,
         "players": { player["puuid"]: { 
@@ -78,13 +83,15 @@ def get_past_game_data(account: dict, match_id: str) -> dict:
 # TODO: Fix inconsistent const strlen and variable strlen
 #       Make display string translation more robust
 #       Include separator whitespaces in variables
+#       Fix player team, remove the subteam logic or something, also duplicate code exists
+#       Merge strlen and the other data maybe
 def _description_builder(finished: bool, data: dict) -> str:
     # setup data
     CONST_STRLEN = {
         "champion": 1,
         "kda": 1,
-        "damage": 2,
-        "rank": 7,
+        "damage": 1,
+        "rank": 0,
         "winrate": 1,
         "wins": 1,
         "losses": 1,        
@@ -93,7 +100,7 @@ def _description_builder(finished: bool, data: dict) -> str:
         "champion": config.TEAM_NAME_LEN, # (RED/BLUE)
         "kda": 3,
         "damage": 3,
-        "rank": 0,
+        "rank": 7,
         "winrate": 3,
         "wins": 0,
         "losses": 0,
@@ -109,17 +116,21 @@ def _description_builder(finished: bool, data: dict) -> str:
         if finished:
             kda[puuid] = f'{player["kills"]}/{player["deaths"]}/{player["assists"]}'
             strlen["kda"] = max(strlen["kda"], len(kda[puuid]))
-            damage[puuid] = f'{math.floor(player["damage"] / 100) / 10:.1f}'
+            damage[puuid] = f'{math.floor(player["damage"] / 100) / 10:.1f}k'
             strlen["damage"] = max(strlen["damage"], len(damage[puuid]))
-        rank[puuid] = helper.display_elo_short(player["elo"])
-        winrate[puuid] = round(100 * player["wins"] / (player["wins"] + player["losses"]))
-
-        strlen["winrate"] = max(strlen["winrate"], len(f'{winrate[puuid]}%'))
+        if player["wins"] + player["losses"] != 0:
+            rank[puuid] = helper.display_elo_short(player["elo"])
+            winrate[puuid] = round(100 * player["wins"] / (player["wins"] + player["losses"]))
+        else:
+            rank[puuid] = "Unranked"
+            winrate[puuid] = ""
+        strlen["rank"] = max(strlen["rank"], len(rank[puuid]))
+        strlen["winrate"] = max(strlen["winrate"], len(str(winrate[puuid])))
         strlen["wins"] = max(strlen["wins"], len(str(player["wins"])))
         strlen["losses"] = max(strlen["losses"], len(str(player["losses"])))
 
     # team name check
-    if not data["players"][data["puuid"]]["subteam"] is None or data["players"][data["puuid"]]["subteam"] != 0:
+    if not data["players"][data["puuid"]].get("subteam") is None and data["players"][data["puuid"]]["subteam"] != 0: # dupe
         strlen["champion"] = max(strlen["champion"], config.SUB_TEAM_LEN)
 
     # truncate champion if text wrap (on pc) happens
@@ -128,31 +139,29 @@ def _description_builder(finished: bool, data: dict) -> str:
         strlen["champion"] -= total_len - config.PC_TEXT_WRAP
 
     # initial description
-    description = [ f'{data["username"]}#{data["tag"]} {data["region"]}' ]
+    description = [ f'{data["username"]}#{data["tag"]}' ]
+    description.append(f'\nREGION: {data["region"]}')
     if finished:
-        description.append(f'\n{helper.second_str_display(data)}')
+        description.append(f'\n{helper.second_str_display(data["end_time"] - data["start_time"])}')
     description.append(f'\n<t:{data["start_time"]}:t>')
     if finished:
         description.append(f' - <t:{data["end_time"]}:t>')
         description.append(f'\nKDA: {kda[data["puuid"]]}')
-    description.append(f'\n{QUEUE_ID[data["queueid"]]}')
-    if data["queueid"] == 420: # NOTE: this number may need to be updated in the future        
-        description.append(f'\n{helper.display_elo(data["players"][data["puuid"]])}')
+    description.append(f'\n{QUEUE_ID[data["queue_id"]]}')
+    if data["queue_id"] == 420: # NOTE: this number may need to be updated in the future        
+        description.append(f'\n{helper.display_elo(data["players"][data["puuid"]]["elo"])}')
     
     # gamedata representation
     teams = {}
     for puuid, player in data["players"].items():
-        team = player["subteam"] if not player["subteam"] is None or player["subteam"] != 0 else player["team"]
-        if teams[team] is None:
+        team = player["subteam"] if not player.get("subteam") is None and player["subteam"] != 0 else player["team"] # dupe
+        if teams.get(team) is None:
             teams[team] = []
-        str = [f'\n{champion[puuid]:{strlen["champion"]}}']
+        playerstr = [f'\n{champion[puuid]:{strlen["champion"]}}']
         if finished:
-            str.append(f' {kda[puuid]:{strlen["kda"]}} {damage[puuid]}k')
-        if player["wins"] + player["losses"] == 0:
-            str.append(f' Unranked')
-        else:
-            str.append(f' {rank[puuid]:{strlen["rank"]}} {winrate[puuid]:>{strlen["winrate"]}} {player["wins"]}W{player["losses"]}L')
-        teams[team].append("".join(str))
+            playerstr.append(f' {kda[puuid]:{strlen["kda"]}} {damage[puuid]:>{strlen["damage"]}}')
+        playerstr.append(f' {rank[puuid]:>{strlen["rank"]}} {winrate[puuid]:>{strlen["winrate"]}}% {player["wins"]:>{strlen["wins"]}}W{player["losses"]:>{strlen["losses"]}}L')
+        teams[team].append("".join(playerstr))
 
     description.append(f'```')
     first = True
@@ -171,7 +180,7 @@ def _description_builder(finished: bool, data: dict) -> str:
     return "".join(description)
 
 def game_factory(game_data: dict) -> Game:
-    if game_data["end_time"] == None:
+    if game_data.get("end_time") is None:
         return OngoingGame(game_data)
     elif game_data["remake"]:
         return RemakeGame(game_data)

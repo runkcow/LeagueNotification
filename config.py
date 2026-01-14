@@ -9,23 +9,25 @@ API_KEY = os.getenv("API_KEY")
 DEV_SERVERS = [ 909589494490087494, 415003906951610378 ]
 
 REGIONS = {
-    "BR1"  : "br1.api.riotgames.com",
-    "EUN1" : "eun1.api.riotgames.com",
-    "EUW1" : "euw1.api.riotgames.com",
-    "JP1"  : "jp1.api.riotgames.com",
-    "KR"   : "kr.api.riotgames.com",
-    "LA1"  : "la1.api.riotgames.com",
-    "LA2"  : "la2.api.riotgames.com",
-    "NA1"  : "na1.api.riotgames.com",
-    "OC1"  : "oc1.api.riotgames.com",
-    "TR1"  : "tr1.api.riotgames.com",
-    "RU"   : "ru.api.riotgames.com",
-    "PH2"  : "ph2.api.riotgames.com",
-    "SG2"  : "sg2.api.riotgames.com",
-    "TH2"  : "th2.api.riotgames.com",
-    "TW2"  : "tw2.api.riotgames.com",
-    "VN2"  : "vn2.api.riotgames.com",
+    "br1"  : "americas",
+    "la1"  : "americas",
+    "la2"  : "americas",
+    "na1"  : "americas",
+    "oc1"  : "americas",
+    "eun1" : "europe",
+    "euw1" : "europe",
+    "tr1"  : "europe",
+    "ru"   : "europe",
+    "jp1"  : "asia",
+    "kr"   : "asia",
+    "ph2"  : "sea",
+    "sg2"  : "sea",
+    "th2"  : "sea",
+    "tw2"  : "sea",
+    "vn2"  : "sea",
 }
+
+
 
 # TODO: generate grandmaster and challenger cutoffs on the fly
 TIER_LP = {
@@ -40,7 +42,7 @@ TIER_LP = {
     "GRANDMASTER" : 2800,
     "CHALLENGER"  : 2800,
 }
-L_TIER_LP = { k : v for k, v in TIER_LP.items() if k != "MASTER" or k != "GRANDMASTER" or k != "CHALLENGER" }
+L_TIER_LP = { k : v for k, v in TIER_LP.items() if k != "MASTER" and k != "GRANDMASTER" and k != "CHALLENGER" }
 
 RANK_LP = {
     "IV"  : -300,
@@ -50,7 +52,7 @@ RANK_LP = {
 }
 
 # index 0 means 0 elo, index 15 means 1500 elo
-ELO_DISPLAY = [ (T, R) for R in RANK_LP for T in L_TIER_LP ]
+ELO_DISPLAY = [ (T, R) for T in L_TIER_LP for R in RANK_LP ]
 ELO_DISPLAY.append(("MASTER", "I")) # 2800 elo and above is MASTER I
 
 RANK_NUMERICAL = {

@@ -27,7 +27,7 @@ def add_account(server: str, channel: str, puuid: str, username: str, tag: str, 
 
 def update_account_elo(puuid: str, elo: int):
     with getconn() as conn:
-        conn.execute("UPDATE accounts SET lp = ? WHERE puuid = ?", (elo, puuid))
+        conn.execute("UPDATE accounts SET elo = ? WHERE puuid = ?", (elo, puuid))
 
 def update_account_channel(server: str, puuid: str, channel: str):
     with getconn() as conn:
@@ -52,4 +52,8 @@ def remove_account(server: str, puuid: str):
     with getconn() as conn:
         conn.execute("DELETE FROM servers WHERE puuid = ?", (puuid, ))
         if not conn.execute("SELECT 1 FROM accounts AS a JOIN servers AS s ON a.puuid = s.puuid WHERE a.puuid = ? AND s.server = ?", (puuid, server)).fetchone():
-            conn.delete("DELETE FROM accounts WHERE puuid = ?", (puuid, ))
+            conn.execute("DELETE FROM accounts WHERE puuid = ?", (puuid, ))
+
+def update_server_message(puuid: str, server: str, message: str):
+    with getconn() as conn:
+        conn.execute("UPDATE servers SET message = ? WHERE puuid = ? AND server = ?", (message, puuid, server))

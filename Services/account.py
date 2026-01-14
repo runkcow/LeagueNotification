@@ -45,6 +45,7 @@ async def account_add(interaction: discord.Interaction, username: str, tag: str,
         print("Bad status @ account.account_add riot_api.get_elo:", err)
         await interaction.response.send_message(err, ephemeral=True)
         return
+    print(res.json())
     data = api_adapter.convert_ranked_data(next((d for d in res.json() if d["queueType"] == "RANKED_SOLO_5x5"), None))
     try:
         account_dao.add_account(interaction.guild_id, channel.id, puuid, username, tag, data["elo"], data["wins"], data["losses"], region)
@@ -89,7 +90,10 @@ account_remove.autocomplete("puuid")(account_auto_complete)
 async def account_elo(interaction: discord.Interaction, puuid: str):
     try:
         account = account_dao.get_account(puuid)
-        await interaction.response.send_message(f'{account["username"]}#{account["tag"]}: {helper.display_elo(account["elo"])}', ephemeral=True)
+        if account["wins"] + account["losses"] == 0:
+            await interaction.response.send_message(f'Unranked')
+        else:
+            await interaction.response.send_message(f'{helper.display_elo(account["elo"])}', ephemeral=True)
     except sqlite3.Error as e:
         print("Error @ account.account_elo account_dao.get_account:", e)
         await interaction.response.send_message("Internal error", ephemeral=True)

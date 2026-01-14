@@ -43,19 +43,23 @@ async def check_game_status():
                 edge = -1
             if edge != 0:
                 game = game_embed.game_factory(data)
+                embedmsg = game.render_embed()
                 try:
                     servers = account_dao.get_account_servers(account["puuid"])
                     for server in servers:
                         try:
+                            # TODO: make dedicated dao methods for these for atomicity
                             if edge == 1:
-                                msg = await client.get_guild(server["server"]).get_channel(server["channel"]).send(embed=game.render_embed)
+                                msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).send(embed=embedmsg)
                                 account_dao.update_account_match_id(account["puuid"], data["match_id"])
+                                account_dao.update_server_message(account["puuid"], server["server"], msg.id)
                             if edge == -1:
-                                msg = await client.get_guild(server["server"]).get_channel(server["channel"]).fetch_message(server["message"])
-                                await msg.edit(embed=game.render_embed)
+                                msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).fetch_message(int(server["message"]))
+                                await msg.edit(embed=embedmsg)
                                 account_dao.update_account_match_id(account["puuid"], None)
                                 if account["elo"] != data["players"][account["puuid"]]["elo"]:
                                     account_dao.update_account_elo(account["puuid"], data["players"][account["puuid"]]["elo"])
+                                account_dao.update_server_message(account["puuid"], server["server"], None)
                         except (discord.Forbidden, discord.NotFound, discord.HTTPException) as e:
                             print("Error @ tasks.check_game_status discord:", e)
                             continue
