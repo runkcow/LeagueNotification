@@ -27,8 +27,6 @@ REGIONS = {
     "vn2"  : "sea",
 }
 
-
-
 # TODO: generate grandmaster and challenger cutoffs on the fly
 TIER_LP = {
     "IRON"        : 300,

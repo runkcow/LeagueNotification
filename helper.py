@@ -4,20 +4,14 @@ import config
 def get_elo (tier: str, rank: str, lp: int) -> int:
     return config.TIER_LP[tier] + config.RANK_LP[rank] + lp
 
-def _get_tier (elo) -> tuple:
+def get_elo_parts (elo) -> tuple:
     (tier, rank) = config.ELO_DISPLAY[-1] if elo // 100 >= len(config.ELO_DISPLAY) else config.ELO_DISPLAY[elo // 100]
     lp = elo - config.TIER_LP[tier] - config.RANK_LP[rank]
     return (tier, rank, lp)
 
 def display_elo (elo) -> str:
-    tier, rank, lp = _get_tier(elo)
+    tier, rank, lp = get_elo_parts(elo)
     return f'{tier} {rank} {lp}LP'
-
-# TODO: this breaks when LP exceeds 2 digits
-#       stop using and move logic to game_embed.py
-def display_elo_short (elo) ->str:
-    tier, rank, lp = _get_tier(elo)
-    return f'{tier[0]}{config.RANK_NUMERICAL[rank]} {lp:>2}LP'
 
 def second_str_display(seconds):
     m, s = divmod(seconds, 60)

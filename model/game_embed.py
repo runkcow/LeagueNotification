@@ -14,24 +14,26 @@ import helper
 QUEUE_ID = riot_api.get_queue_id()
 CHAMPION_ID = riot_api.get_champion_id()
 
-def get_ranked_info(region: str, puuid: str) -> dict:
+def _get_ranked_info(region: str, puuid: str) -> dict:
+    if puuid is None:
+        return api_adapter.convert_ranked_data() 
     res = riot_api.get_elo(region, puuid)
     if res.status_code == 400: # TODO: I don't think this is correct, study how streamer mode affects the api calls
         return api_adapter.convert_ranked_data()
     err = riot_api.status_err(res)
     if not err is None:
-        print("Bad status @ game_embed.get_ranked_info riot_api.get_elo:", err)
+        print("Bad status @ game_embed._get_ranked_info riot_api.get_elo:", err)
         return {}
     return api_adapter.convert_ranked_data(next((d for d in res.json() if d["queueType"] == "RANKED_SOLO_5x5"), None))
 
-# TODO: an error is appearing here, something is locking up the bot
+# TODO: rebuild "players" so streamer mode players don't get lost
 def get_current_game_data(account: dict) -> dict:
     res = riot_api.get_current_game(account["region"], account["puuid"])
     if res.status_code == 404:
         return None
     err = riot_api.status_err(res)
     if not err is None:
-        print("Bad status @ game_embed.get_ranked_info riot_api.get_current_game:", err)
+        print("Bad status @ game_embed._get_ranked_info riot_api.get_current_game:", err)
         return None
     data = res.json()
     return {
@@ -42,20 +44,20 @@ def get_current_game_data(account: dict) -> dict:
         "match_id": data["gameId"],
         "queue_id": data["gameQueueConfigId"],
         "start_time": data["gameStartTime"] // 1000,
-        "players": { player["puuid"]: { 
+        "players": { (player["puuid"] if not player["puuid"] is None else f'!{i}') : { 
             "champion": player["championId"],
-            **get_ranked_info(account["region"], player["puuid"]),
+            **_get_ranked_info(account["region"], player["puuid"]),
             "team": player["teamId"], # playerSubteamId does not exist for spectatorV5
-        } for player in data["participants"] },
+        } for i, player in enumerate(data["participants"]) },
     }
 
 def get_past_game_data(account: dict, match_id: str) -> dict:
     res = riot_api.get_past_game(account["region"], match_id)
     err = riot_api.status_err(res)
     if not err is None:
-        print("Bad status @ game_embed.get_ranked_info riot_api.get_past_game:", err)
+        print("Bad status @ game_embed._get_ranked_info riot_api.get_past_game:", err)
         return None
-    data = res.json()    
+    data = res.json()
     return {
         "puuid": account["puuid"],
         "username": account["username"],
@@ -66,68 +68,84 @@ def get_past_game_data(account: dict, match_id: str) -> dict:
         "queue_id": data["info"]["queueId"],
         "start_time": data["info"]["gameStartTimestamp"] // 1000,
         "end_time": data["info"]["gameEndTimestamp"] // 1000,
-        "players": { player["puuid"]: { 
+        "players": { (player["puuid"] if not player["puuid"] is None else f'!{i}') : {
             "champion": player["championId"],
             "assists": player["assists"],
             "deaths": player["deaths"],
             "kills": player["kills"],
             "damage": player["totalDamageDealtToChampions"],
             "win": player["win"],
-            **get_ranked_info(account["region"], player["puuid"]),
+            **_get_ranked_info(account["region"], player["puuid"]),
             "team": player["teamId"],
             "subteam": player["playerSubteamId"]
-        } for player in data["info"]["participants"] },
-        "remake": data["info"]["participants"][0]["gameEndedInEarlySurrender"], # NOTE: unsure if this is correct
+        } for i, player in enumerate(data["info"]["participants"]) },
+        "remake": data["info"]["participants"][0]["gameEndedInEarlySurrender"], # NOTE: check if this works
     }
 
-# TODO: Fix inconsistent const strlen and variable strlen
-#       Make display string translation more robust
-#       Include separator whitespaces in variables
-#       Fix player team, remove the subteam logic or something, also duplicate code exists
+# TODO: Fix player team, remove the subteam logic or something, also duplicate code exists
 #       Merge strlen and the other data maybe
 def _description_builder(finished: bool, data: dict) -> str:
-    # setup data
+    # whitespace 
     CONST_STRLEN = {
-        "champion": 1,
-        "kda": 1,
-        "damage": 1,
-        "rank": 0,
-        "winrate": 1,
-        "wins": 1,
-        "losses": 1,        
+        "champion" : 1,
+        "kda"      : 1,
+        "damage"   : 1,
+        "tier"     : 0,
+        "lp"       : 1,
+        "winrate"  : 1,
+        "wins"     : 0,
+        "losses"   : 0,        
     }
+    # base len, caused by column name
     strlen = {
-        "champion": config.TEAM_NAME_LEN, # (RED/BLUE)
-        "kda": 3,
-        "damage": 3,
-        "rank": 7,
-        "winrate": 3,
-        "wins": 0,
-        "losses": 0,
+        "champion" : config.TEAM_NAME_LEN, # (RED/BLUE)
+        "kda"      : 3,
+        "damage"   : 3,
+        "tier"     : 0,
+        "lp"       : 0,
+        "winrate"  : 3,
+        "wins"     : 0,
+        "losses"   : 0,
     }
-    champion = {} # NOTE: maybe combine these into a single dict
-    kda = {}
-    damage = {}
-    rank = {}
-    winrate = {}
+    # NOTE: perhaps this should be a dict of puuids pointing towards data but both ways work
+    dispdata = {
+        "champion" : {}, 
+        "kda"      : {},
+        "damage"   : {},
+        "tier"     : {},
+        "lp"       : {},
+        "winrate"  : {},
+        "wins"     : {},
+        "losses"   : {},
+    }
+    NO_DATA = "No Data"
     for puuid, player in data["players"].items():
-        champion[puuid] = f'{"*" if data["puuid"] == puuid else ""}{CHAMPION_ID[player["champion"]]}'
-        strlen["champion"] = max(strlen["champion"], len(champion[puuid]))
+        dispdata["champion"][puuid] = f'{"*" if data["puuid"] == puuid else ""}{CHAMPION_ID[player["champion"]]}'
+        strlen["champion"] = max(strlen["champion"], len(dispdata["champion"][puuid]))
         if finished:
-            kda[puuid] = f'{player["kills"]}/{player["deaths"]}/{player["assists"]}'
-            strlen["kda"] = max(strlen["kda"], len(kda[puuid]))
-            damage[puuid] = f'{math.floor(player["damage"] / 100) / 10:.1f}k'
-            strlen["damage"] = max(strlen["damage"], len(damage[puuid]))
+            dispdata["kda"][puuid] = f'{player["kills"]}/{player["deaths"]}/{player["assists"]}'
+            dispdata["damage"][puuid] = f'{math.floor(player["damage"] / 100) / 10:.1f}k'
+            strlen["kda"] = max(strlen["kda"], len(dispdata["kda"][puuid]))
+            strlen["damage"] = max(strlen["damage"], len(dispdata["damage"][puuid]))
         if player["wins"] + player["losses"] != 0:
-            rank[puuid] = helper.display_elo_short(player["elo"])
-            winrate[puuid] = round(100 * player["wins"] / (player["wins"] + player["losses"]))
+            eloparts = helper.get_elo_parts(player["elo"])
+            # including whitespace in dispdata is bad but no other way to deal with Unranked players
+            dispdata["tier"][puuid] = f'{eloparts[0][0]}{config.RANK_NUMERICAL[eloparts[1]]} ' 
+            dispdata["lp"][puuid] = f'{eloparts[2]}LP'
+            dispdata["winrate"][puuid] = f'{round(100 * player["wins"] / (player["wins"] + player["losses"]))}%'
+            dispdata["wins"][puuid] = f'{player["wins"]}W'
+            dispdata["losses"][puuid] = f'{player["losses"]}L'
+            strlen["tier"] = max(strlen["tier"], len(dispdata["tier"][puuid]))
+            strlen["lp"] = max(strlen["lp"], len(dispdata["lp"][puuid]))
+            strlen["winrate"] = max(strlen["winrate"], len(dispdata["winrate"][puuid]))
+            strlen["wins"] = max(strlen["wins"], len(dispdata["wins"][puuid]))
+            strlen["losses"] = max(strlen["losses"], len(dispdata["losses"][puuid]))
         else:
-            rank[puuid] = "Unranked"
-            winrate[puuid] = ""
-        strlen["rank"] = max(strlen["rank"], len(rank[puuid]))
-        strlen["winrate"] = max(strlen["winrate"], len(str(winrate[puuid])))
-        strlen["wins"] = max(strlen["wins"], len(str(player["wins"])))
-        strlen["losses"] = max(strlen["losses"], len(str(player["losses"])))
+            dispdata["tier"][puuid] = NO_DATA
+            dispdata["lp"][puuid] = ""
+            dispdata["winrate"][puuid] = ""
+            dispdata["wins"][puuid] = ""
+            dispdata["losses"][puuid] = ""
 
     # team name check
     if not data["players"][data["puuid"]].get("subteam") is None and data["players"][data["puuid"]]["subteam"] != 0: # dupe
@@ -146,7 +164,7 @@ def _description_builder(finished: bool, data: dict) -> str:
     description.append(f'\n<t:{data["start_time"]}:t>')
     if finished:
         description.append(f' - <t:{data["end_time"]}:t>')
-        description.append(f'\nKDA: {kda[data["puuid"]]}')
+        description.append(f'\nKDA: {dispdata["kda"][data["puuid"]]}')
     description.append(f'\n{QUEUE_ID[data["queue_id"]]}')
     if data["queue_id"] == 420: # NOTE: this number may need to be updated in the future        
         description.append(f'\n{helper.display_elo(data["players"][data["puuid"]]["elo"])}')
@@ -157,10 +175,15 @@ def _description_builder(finished: bool, data: dict) -> str:
         team = player["subteam"] if not player.get("subteam") is None and player["subteam"] != 0 else player["team"] # dupe
         if teams.get(team) is None:
             teams[team] = []
-        playerstr = [f'\n{champion[puuid]:{strlen["champion"]}}']
+        playerstr = [f'\n{dispdata["champion"][puuid][:strlen["champion"]]:{strlen["champion"]}}']
         if finished:
-            playerstr.append(f' {kda[puuid]:{strlen["kda"]}} {damage[puuid]:>{strlen["damage"]}}')
-        playerstr.append(f' {rank[puuid]:>{strlen["rank"]}} {winrate[puuid]:>{strlen["winrate"]}}% {player["wins"]:>{strlen["wins"]}}W{player["losses"]:>{strlen["losses"]}}L')
+            playerstr.append(f' {dispdata["kda"][puuid]:{strlen["kda"]}} {dispdata["damage"][puuid]:>{strlen["damage"]}}')
+        if dispdata["tier"][puuid] != NO_DATA:
+            playerstr.append(f' {dispdata["tier"][puuid]:{strlen["tier"]}}{dispdata["lp"][puuid]:>{strlen["lp"]}}')
+            playerstr.append(f' {dispdata["winrate"][puuid]:>{strlen["winrate"]}}')
+            playerstr.append(f' {dispdata["wins"][puuid]:>{strlen["wins"]}}{dispdata["losses"][puuid]:>{strlen["losses"]}}')
+        else:
+            playerstr.append(f' {NO_DATA}')
         teams[team].append("".join(playerstr))
 
     description.append(f'```')
@@ -170,7 +193,7 @@ def _description_builder(finished: bool, data: dict) -> str:
             description.append(f'{config.TEAM_DISPLAY_NAME[team]:{strlen["champion"]}}')
             if finished:
                 description.append(f' {"KDA":{strlen["kda"]}} {"DMG":{strlen["damage"]}}')
-            description.append(f' {"RANK":{strlen["rank"]}} {"W/R":{strlen["winrate"]}}')
+            description.append(f' {"RANK":{strlen["tier"] + strlen["lp"]}} {"W/R":{strlen["winrate"] + strlen["wins"] + strlen["losses"] + 1}}')
             first = False
         else:
             description.append(f'\n{config.TEAM_DISPLAY_NAME[team]}') # does not add other headers, only team name
@@ -213,7 +236,7 @@ class OngoingGame(Game):
 class FinishedGame(Game, ABC):
     def render_embed(self) -> discord.Embed:
         embed = discord.Embed(
-            title=f'{self.get_title()} {str(self.data["players"][self.data["puuid"]]["elo"] - self.data["old_elo"])}',
+            title=self.get_title(),
             description=_description_builder(True, self.data),
             colour=self.get_colour()
         )
@@ -230,14 +253,18 @@ class FinishedGame(Game, ABC):
 
 class WonGame(FinishedGame):
     def get_title(self) -> str:
-        return "MATCH WON"
+        if self.data["queue_id"] == 420:
+            return f'MATCH WON {str(self.data["players"][self.data["puuid"]]["elo"] - self.data["old_elo"])} LP'
+        return f'MATCH WON'
 
     def get_colour(self) -> int:
         return 3447003
 
 class LostGame(FinishedGame):
     def get_title(self) -> str:
-        return "MATCH LOSS"
+        if self.data["queue_id"] == 420:
+            return f'MATCH LOSS {str(self.data["players"][self.data["puuid"]]["elo"] - self.data["old_elo"])} LP'
+        return f'MATCH LOSS'
 
     def get_colour(self) -> int:
         return 15548997

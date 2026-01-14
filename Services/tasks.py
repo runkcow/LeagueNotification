@@ -7,7 +7,7 @@ import sqlite3
 from dao import account_dao
 from api import riot_api
 import config
-import game_embed
+from model import game_embed
 
 @tasks.loop(hours=24)
 async def update_account_details():

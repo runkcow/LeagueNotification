@@ -5,7 +5,8 @@ import config
 
 HEADER = { 'X-Riot-Token': config.API_KEY }
 
-# hope this doesn't ever break
+# TODO: rebuild api for asynchronous calls, synchronous calls slowing down bot to the point of unresponsiveness
+# NOTE: hope this doesn't ever break
 def get_queue_id() -> dict:
     data = requests.get(f'https://static.developer.riotgames.com/docs/lol/queues.json').json()
     return { d["queueId"]: d["description"].replace(" games", "") for d in data if d.get("description") != None }
