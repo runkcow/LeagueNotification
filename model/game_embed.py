@@ -1,6 +1,4 @@
 
-# TODO: move this file to some folder, or move the contents to tasks.py
-
 import math
 from abc import ABC, abstractmethod
 import discord
@@ -18,7 +16,7 @@ def _get_ranked_info(region: str, puuid: str) -> dict:
     if puuid is None:
         return api_adapter.convert_ranked_data() 
     res = riot_api.get_elo(region, puuid)
-    if res.status_code == 400: # TODO: I don't think this is correct, study how streamer mode affects the api calls
+    if res.status == 400: # TODO: I don't think this is correct, study how streamer mode affects the api calls
         return api_adapter.convert_ranked_data()
     err = riot_api.status_err(res)
     if not err is None:
