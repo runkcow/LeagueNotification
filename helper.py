@@ -17,3 +17,5 @@ def second_str_display(seconds):
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
     return (f'{h:02}:' if h > 0 else "") + f'{m:02}:{s:02}'
+
+

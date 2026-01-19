@@ -4,7 +4,7 @@ import sqlite3
 
 from bot import GUILD_LIST, tree
 from dao import account_dao
-from api import riot_api
+from api.riot_api import riot_api, status_err
 from api import api_adapter
 import helper
 
@@ -21,26 +21,25 @@ async def account_auto_complete(interaction: discord.Interaction, current: str) 
     channel="Output channel"
 )
 async def account_add(interaction: discord.Interaction, username: str, tag: str, channel: discord.TextChannel):
-    api = riot_api.RiotApi()
-    res = await api.get_puuid(username, tag)
+    res = await riot_api.get_puuid(username, tag)
     if res.status == 404:
         await interaction.response.send_message("Account not found", ephemeral=True)
         return
-    err = riot_api.status_err(res)
+    err = status_err(res)
     if not err is None:
         print("Bad status @ account.account_add riot_api.get_puuid:", err)
         await interaction.response.send_message(err, ephemeral=True)
         return
     puuid = res.data["puuid"]
-    res = await api.get_region(puuid) # hopefully this works flawlessly
-    err = riot_api.status_err(res)
+    res = await riot_api.get_region(puuid) # hopefully this works flawlessly
+    err = status_err(res)
     if not err is None:
         print("Bad status @ account.account_add riot_api.get_region:", err)
         await interaction.response.send_message(err, ephemeral=True)
         return
     region = res.data["region"]
-    res = await api.get_elo(region, puuid)
-    err = riot_api.status_err(res)
+    res = await riot_api.get_elo(region, puuid)
+    err = status_err(res)
     if not err is None:
         print("Bad status @ account.account_add riot_api.get_elo:", err)
         await interaction.response.send_message(err, ephemeral=True)
@@ -54,8 +53,6 @@ async def account_add(interaction: discord.Interaction, username: str, tag: str,
     except sqlite3.Error as e:
         print("Error @ account.account_add account_dao.add_account:", e)
         await interaction.response.send_message("Internal error", ephemeral=True)
-    finally:
-        api.close()
     
 @tree.command(name="accountchngchnl", description="Change output channel of account", guilds=GUILD_LIST)
 @discord.app_commands.describe(

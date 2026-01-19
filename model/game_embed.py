@@ -4,35 +4,30 @@ from abc import ABC, abstractmethod
 import discord
 
 import config
-from api import riot_api
+from api.riot_api import riot_api, status_err
 from api import api_adapter
 import helper
 
 # TODO: these could get updated so they should be updated when version changes or refreshed when used
-temp_api = riot_api.RiotApi()
-VERSION = temp_api.get_version()
-QUEUE_ID = temp_api.get_queue_id()
-CHAMPION_ID = temp_api.get_champion_id()
-THUMBNAIL_URL = temp_api.get_thumbnail_url()
 
-async def _get_ranked_info(api: riot_api.RiotApi, region: str, puuid: str) -> dict:
+async def _get_ranked_info(region: str, puuid: str) -> dict:
     if puuid is None:
         return api_adapter.convert_ranked_data() 
-    res = await api.get_elo(region, puuid)
+    res = await riot_api.get_elo(region, puuid)
     if res.status == 400: # TODO: I don't think this is correct, study how streamer mode affects the api calls
         return api_adapter.convert_ranked_data()
-    err = riot_api.status_err(res)
+    err = status_err(res)
     if not err is None:
         print("Bad status @ game_embed._get_ranked_info riot_api.get_elo:", err)
         return {}
     return api_adapter.convert_ranked_data(next((d for d in res.data if d["queueType"] == "RANKED_SOLO_5x5"), None))
 
 # TODO: fix get_current|past_game_data to fit riot_api.py changes
-async def get_current_game_data(api: riot_api.RiotApi, account: dict) -> dict:
-    res = await api.get_current_game(account["region"], account["puuid"])
+async def get_current_game_data(account: dict) -> dict:
+    res = await riot_api.get_current_game(account["region"], account["puuid"])
     if res.status == 404:
         return None
-    err = riot_api.status_err(res)
+    err = status_err(res)
     if not err is None:
         print("Bad status @ game_embed._get_ranked_info riot_api.get_current_game:", err)
         return None
@@ -52,13 +47,13 @@ async def get_current_game_data(api: riot_api.RiotApi, account: dict) -> dict:
         } for i, player in enumerate(data["participants"]) },
     }
 
-def get_past_game_data(account: dict, match_id: str) -> dict:
-    res = riot_api.get_past_game(account["region"], match_id)
-    err = riot_api.status_err(res)
+async def get_past_game_data(account: dict, match_id: str) -> dict:
+    res = await riot_api.get_past_game(account["region"], match_id)
+    err = status_err(res)
     if not err is None:
         print("Bad status @ game_embed._get_ranked_info riot_api.get_past_game:", err)
         return None
-    data = res.json()
+    data = res.data
     return {
         "puuid": account["puuid"],
         "username": account["username"],
@@ -121,7 +116,7 @@ def _description_builder(finished: bool, data: dict) -> str:
     }
     NO_DATA = "No Data"
     for puuid, player in data["players"].items():
-        dispdata["champion"][puuid] = f'{"*" if data["puuid"] == puuid else ""}{CHAMPION_ID[player["champion"]]}'
+        dispdata["champion"][puuid] = f'{"*" if data["puuid"] == puuid else ""}{riot_api.champion_id[player["champion"]]}'
         strlen["champion"] = max(strlen["champion"], len(dispdata["champion"][puuid]))
         if finished:
             dispdata["kda"][puuid] = f'{player["kills"]}/{player["deaths"]}/{player["assists"]}'
@@ -166,7 +161,7 @@ def _description_builder(finished: bool, data: dict) -> str:
     if finished:
         description.append(f' - <t:{data["end_time"]}:t>')
         description.append(f'\nKDA: {dispdata["kda"][data["puuid"]]}')
-    description.append(f'\n{QUEUE_ID[data["queue_id"]]}')
+    description.append(f'\n{riot_api.queue_id[data["queue_id"]]}')
     if data["queue_id"] == 420: # NOTE: this number may need to be updated in the future        
         description.append(f'\n{helper.display_elo(data["players"][data["puuid"]]["elo"])}')
     
@@ -231,7 +226,7 @@ class OngoingGame(Game):
             description=_description_builder(False, self.data),
             colour=5763719
         )
-        embed.set_thumbnail(url=riot_api.get_thumbnail_url(CHAMPION_ID[self.data["players"][self.data["puuid"]]["champion"]]))
+        embed.set_thumbnail(url=riot_api.get_thumbnail_url(riot_api.champion_id[self.data["players"][self.data["puuid"]]["champion"]]))
         return embed
 
 class FinishedGame(Game, ABC):
@@ -241,7 +236,7 @@ class FinishedGame(Game, ABC):
             description=_description_builder(True, self.data),
             colour=self.get_colour()
         )
-        embed.set_thumbnail(url=riot_api.get_thumbnail_url(CHAMPION_ID[self.data["players"][self.data["puuid"]]["champion"]]))
+        embed.set_thumbnail(url=riot_api.get_thumbnail_url(riot_api.champion_id[self.data["players"][self.data["puuid"]]["champion"]]))
         return embed
 
     @abstractmethod

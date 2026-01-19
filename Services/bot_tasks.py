@@ -1,8 +1,8 @@
 
-from bot import client
 import discord
 from discord.ext import tasks
 import sqlite3
+import asyncio
 
 from dao import account_dao
 from api.riot_api import riot_api, status_err
@@ -10,8 +10,13 @@ import config
 from model import game_embed
 
 @tasks.loop(hours=24)
-async def periodic_update():
+async def check_league_constants():
+    if check_league_constants.current_loop == 0: # skip first run
+        return
     await riot_api.update_fields()
+
+@tasks.loop(hours=24)
+async def check_account_details():
     try:
         accounts = account_dao.get_accounts()
         for account in accounts:
@@ -20,7 +25,7 @@ async def periodic_update():
             if not err is None:
                 print("Bad status @ tasks.update_account_details riot_api.get_username:", err)
                 continue
-            data = res.json()
+            data = res.data
             dict = { config.TRANSLATE_ACCOUNT_DTO[k]: v for k, v in data.items() }
             if any(account[k] != v for k, v in dict.items()):
                 try:
@@ -30,17 +35,22 @@ async def periodic_update():
     except sqlite3.Error as e:
         print("Error @ tasks.update_account_details accountDAO.get_account:", e)
 
+# TODO: implement asyncio gather to asynchronously check all accounts simultaneously
+#       consider changing timer to 2 minutes to better fit api request limit
 @tasks.loop(minutes=1)
-async def check_game_status():
+async def check_game_status(client: discord.Client): # this is technically model.discord_client.DiscordClient
     try:
+        # TODO: complete asynchronous implementation
         accounts = account_dao.get_accounts()
+        data = asyncio.gather(*(game_embed.get_current_game_data(account) for account in accounts))
+
         for account in accounts:
-            data = game_embed.get_current_game_data(account) # assume this only returns None on no game found, not riot api error
+            data = await game_embed.get_current_game_data(account) # assume this only returns None on no game found, not riot api error
             edge = 0
             if account["match_id"] is None and not data is None:
                 edge = 1
             if not account["match_id"] is None and data is None:
-                data = game_embed.get_past_game_data(account, account["match_id"])
+                data = await game_embed.get_past_game_data(account, account["match_id"])
                 edge = -1
             if edge != 0:
                 game = game_embed.game_factory(data)
@@ -69,3 +79,8 @@ async def check_game_status():
                     continue
     except sqlite3.Error as e:
         print("Error @ tasks.check_game_status accountDAO.get_account:", e)
+
+def start_bot_tasks(client: discord.Client):
+    check_league_constants.start()
+    check_account_details.start()
+    check_game_status.start(client)

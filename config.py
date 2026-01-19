@@ -27,6 +27,10 @@ REGIONS = {
     "vn2"  : "sea",
 }
 
+REQUEST_LIMIT_SHORT = (20, 1)
+REQUEST_LIMIT_LONG = (100, 120)
+SEMAPHORE = 20
+
 # TODO: generate grandmaster and challenger cutoffs on the fly
 TIER_LP = {
     "IRON"        : 300,
