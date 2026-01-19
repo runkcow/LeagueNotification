@@ -2,8 +2,6 @@
 import discord
 import sqlite3
 
-import config
-
 from bot import GUILD_LIST, tree
 from dao import account_dao
 from api import riot_api
@@ -15,6 +13,7 @@ async def account_auto_complete(interaction: discord.Interaction, current: str) 
     matches = [account for account in accounts if current.lower() in f'{account["username"]}#{account["tag"]}'.lower()][:25]
     return [discord.app_commands.Choice(name=f'{account["username"]}#{account["tag"]}', value=account["puuid"]) for account in matches]
 
+# TODO: combine this into a single ClientSession in riot_api.py
 @tree.command(name="accountadd", description="Add account to track", guilds=GUILD_LIST)
 @discord.app_commands.describe(
     username="Username of account",
@@ -22,8 +21,9 @@ async def account_auto_complete(interaction: discord.Interaction, current: str) 
     channel="Output channel"
 )
 async def account_add(interaction: discord.Interaction, username: str, tag: str, channel: discord.TextChannel):
-    res = riot_api.get_puuid(username, tag)
-    if res.status_code == 404:
+    api = riot_api.RiotApi()
+    res = await api.get_puuid(username, tag)
+    if res.status == 404:
         await interaction.response.send_message("Account not found", ephemeral=True)
         return
     err = riot_api.status_err(res)
@@ -31,22 +31,21 @@ async def account_add(interaction: discord.Interaction, username: str, tag: str,
         print("Bad status @ account.account_add riot_api.get_puuid:", err)
         await interaction.response.send_message(err, ephemeral=True)
         return
-    puuid = res.json()["puuid"]
-    res = riot_api.get_region(puuid) # hopefully this works flawlessly
+    puuid = res.data["puuid"]
+    res = await api.get_region(puuid) # hopefully this works flawlessly
     err = riot_api.status_err(res)
     if not err is None:
         print("Bad status @ account.account_add riot_api.get_region:", err)
         await interaction.response.send_message(err, ephemeral=True)
         return
-    region = res.json()["region"]
-    res = riot_api.get_elo(region, puuid)
+    region = res.data["region"]
+    res = await api.get_elo(region, puuid)
     err = riot_api.status_err(res)
     if not err is None:
         print("Bad status @ account.account_add riot_api.get_elo:", err)
         await interaction.response.send_message(err, ephemeral=True)
         return
-    print(res.json())
-    data = api_adapter.convert_ranked_data(next((d for d in res.json() if d["queueType"] == "RANKED_SOLO_5x5"), None))
+    data = api_adapter.convert_ranked_data(next((d for d in res.data if d["queueType"] == "RANKED_SOLO_5x5"), None))
     try:
         account_dao.add_account(interaction.guild_id, channel.id, puuid, username, tag, data["elo"], data["wins"], data["losses"], region)
         await interaction.response.send_message("Account successfully added", ephemeral=True)
@@ -55,6 +54,8 @@ async def account_add(interaction: discord.Interaction, username: str, tag: str,
     except sqlite3.Error as e:
         print("Error @ account.account_add account_dao.add_account:", e)
         await interaction.response.send_message("Internal error", ephemeral=True)
+    finally:
+        api.close()
     
 @tree.command(name="accountchngchnl", description="Change output channel of account", guilds=GUILD_LIST)
 @discord.app_commands.describe(

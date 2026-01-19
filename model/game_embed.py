@@ -9,31 +9,34 @@ from api import api_adapter
 import helper
 
 # TODO: these could get updated so they should be updated when version changes or refreshed when used
-QUEUE_ID = riot_api.get_queue_id()
-CHAMPION_ID = riot_api.get_champion_id()
+temp_api = riot_api.RiotApi()
+VERSION = temp_api.get_version()
+QUEUE_ID = temp_api.get_queue_id()
+CHAMPION_ID = temp_api.get_champion_id()
+THUMBNAIL_URL = temp_api.get_thumbnail_url()
 
-def _get_ranked_info(region: str, puuid: str) -> dict:
+async def _get_ranked_info(api: riot_api.RiotApi, region: str, puuid: str) -> dict:
     if puuid is None:
         return api_adapter.convert_ranked_data() 
-    res = riot_api.get_elo(region, puuid)
+    res = await api.get_elo(region, puuid)
     if res.status == 400: # TODO: I don't think this is correct, study how streamer mode affects the api calls
         return api_adapter.convert_ranked_data()
     err = riot_api.status_err(res)
     if not err is None:
         print("Bad status @ game_embed._get_ranked_info riot_api.get_elo:", err)
         return {}
-    return api_adapter.convert_ranked_data(next((d for d in res.json() if d["queueType"] == "RANKED_SOLO_5x5"), None))
+    return api_adapter.convert_ranked_data(next((d for d in res.data if d["queueType"] == "RANKED_SOLO_5x5"), None))
 
-# TODO: rebuild "players" so streamer mode players don't get lost
-def get_current_game_data(account: dict) -> dict:
-    res = riot_api.get_current_game(account["region"], account["puuid"])
-    if res.status_code == 404:
+# TODO: fix get_current|past_game_data to fit riot_api.py changes
+async def get_current_game_data(api: riot_api.RiotApi, account: dict) -> dict:
+    res = await api.get_current_game(account["region"], account["puuid"])
+    if res.status == 404:
         return None
     err = riot_api.status_err(res)
     if not err is None:
         print("Bad status @ game_embed._get_ranked_info riot_api.get_current_game:", err)
         return None
-    data = res.json()
+    data = res.data
     return {
         "puuid": account["puuid"],
         "username": account["username"],

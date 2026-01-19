@@ -1,6 +1,7 @@
 
 import aiohttp
 import asyncio
+import signal
 
 import config
 
@@ -13,90 +14,105 @@ class RiotResponse:
         self.status = status
         self.data = data
 
-# TODO: rebuild api for asynchronous calls, synchronous calls slowing down bot to the point of unresponsiveness
-#       add status check
-async def get_queue_id() -> dict:
-    url = f'https://static.developer.riotgames.com/docs/lol/queues.json'
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as res:
+class RiotApi:
+    def __init__(self):
+        self.session = aiohttp.ClientSession()
+        self.queue_id = None
+        self.version = None
+        self.champion_id = None
+        self.thumbnail_url = self.get_thumbnail_url()
+
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        self.queue_id = await self.get_queue_id()
+        self.version = await self.get_version()
+        self.champion_id = await self.get_champion_id()
+        self.thumbnail_url = await self.get_thumbnail_url()
+
+    async def close(self):
+        if self.session:
+            await self.session.close()
+
+    # TODO: rebuild api for asynchronous calls, synchronous calls slowing down bot to the point of unresponsiveness
+    #       add status check
+    async def get_queue_id(self) -> dict[int, str]:
+        url = f'https://static.developer.riotgames.com/docs/lol/queues.json'
+        async with self.session.get(url) as res:
             data = await res.json()
-    return { d["queueId"]: d["description"].replace(" games", "") for d in data if not d.get("description") is None }
-    
+        return { d["queueId"]: d["description"].replace(" games", "") for d in data if not d.get("description") is None }
 
-# TODO: loads entire array when only the first entry is wanted
-#       add status check
-async def get_version() -> str:
-    url = f'https://ddragon.leagueoflegends.com/api/versions.json'
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as res:
+    # TODO: loads entire array when only the first entry is wanted
+    #       add status check
+    async def get_version(self) -> str:
+        url = f'https://ddragon.leagueoflegends.com/api/versions.json'
+        async with self.session.get(url) as res:
             data = await res.json()
-    return data[0]
+        return data[0]
 
-# TODO: loads excess data
-async def get_champion_id() -> dict:
-    url = f'https://ddragon.leagueoflegends.com/cdn/{await get_version()}/data/en_US/champion.json'
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as res:
+    # TODO: loads excess data
+    async def get_champion_id(self) -> dict[int, str]:
+        url = f'https://ddragon.leagueoflegends.com/cdn/{self.version}/data/en_US/champion.json'
+        async with self.session.get(url) as res:
             data = await res.json()
-    return { int(v["key"]): k for k, v in data["data"].items() }
+        return { int(v["key"]): k for k, v in data["data"].items() }
 
-# TODO: add status check
-async def get_thumbnail_url(champion_name) -> str:
-    return f'https://ddragon.leagueoflegends.com/cdn/{await get_version()}/img/champion/{champion_name}.png'
+    # TODO: add status check
+    def get_thumbnail_url(self) -> function:
+        return lambda champion_name: f'https://ddragon.leagueoflegends.com/cdn/{self.version}/img/champion/{champion_name}.png'
 
-async def get_puuid(username: str, tag: str) -> RiotResponse:
-    url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{username}/{tag}'
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=HEADER) as res:
+    async def update_fields(self):
+        self.queue_id = await self.get_queue_id()
+        self.version = await self.get_version()
+        self.champion_id = await self.get_champion_id()
+        self.thumbnail_url = self.get_thumbnail_url()
+
+    async def get_puuid(self, username: str, tag: str) -> RiotResponse:
+        url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{username}/{tag}'
+        async with self.session.get(url, headers=HEADER) as res:
             obj = RiotResponse(res.status, await res.json())
-    return obj
+        return obj
 
-async def get_username(puuid: str) -> RiotResponse:
-    url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-puuid/{puuid}'
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=HEADER) as res:
+    async def get_username(self, puuid: str) -> RiotResponse:
+        url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-puuid/{puuid}'
+        async with self.session.get(url, headers=HEADER) as res:
             obj = RiotResponse(res.status, await res.json())
-    return obj 
+        return obj 
 
-async def get_region(puuid: str) -> RiotResponse:
-    url = f'https://americas.api.riotgames.com/riot/account/v1/region/by-game/lol/by-puuid/{puuid}'
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=HEADER) as res:
+    async def get_region(self, puuid: str) -> RiotResponse:
+        url = f'https://americas.api.riotgames.com/riot/account/v1/region/by-game/lol/by-puuid/{puuid}'
+        async with self.session.get(url, headers=HEADER) as res:
             obj = RiotResponse(res.status, await res.json())
-    return obj
+        return obj
 
-async def _get_elo(session: aiohttp.ClientSession, region: str, puuid: str) -> tuple[str, RiotResponse]:
-    url = f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}'
-    async with session.get(url, headers=HEADER) as res:
-        obj = RiotResponse(res.status, await res.json())
-    return (puuid, obj)
+    async def get_elo(self, region: str, puuid: str) -> RiotResponse:
+        url = f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}'
+        async with self.session.get(url, headers=HEADER) as res:
+            obj = RiotResponse(res.status, await res.json())
+        return obj
 
-async def get_elo(region: str, puuids: list[str]) -> dict[str, None | RiotResponse]:
-    async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(*(_get_elo(session, region, puuid) for puuid in puuids), return_exceptions=True)
-    return { res[0] : None if isinstance(res, Exception) else res[1] for res in results }
+    async def get_current_game(self, region: str, puuid: str) -> RiotResponse:
+        url = f'https://{region}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}'
+        async with self.session.get(url, headers=HEADER) as res:
+            obj = RiotResponse(res.status, await res.json())
+        return obj
 
-async def _get_current_game(session: aiohttp.ClientSession, region: str, puuid: str) -> tuple[str, RiotResponse]:
-    url = f'https://{region}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}'
-    async with session.get(url, headers=HEADER) as res:
-        obj = RiotResponse(res.status, await res.json())
-    return (puuid, obj)
-    
-async def get_current_game(region: str, puuids: list[str]) -> dict[str, None | RiotResponse]:
-    async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(*(_get_current_game(session, region, puuid) for puuid in puuids), return_exceptions=True)
-    return { res[0] : None if isinstance(res, Exception) else res[1] for res in results }
+    async def get_past_game(self, region: str, match_id: str) -> RiotResponse:
+        url = f'https://{config.REGIONS[region]}.api.riotgames.com/lol/match/v5/matches/{region.upper()}_{match_id}'
+        async with self.session.get(url, headers=HEADER) as res:
+            obj = RiotResponse(res.status, await res.json())
+        return obj
 
-async def _get_past_game(session: aiohttp.ClientSession, region: str, match_id: str) -> tuple[str, RiotResponse]:
-    url = f'https://{config.REGIONS[region]}.api.riotgames.com/lol/match/v5/matches/{region.upper()}_{match_id}'
-    async with session.get(url, headers=HEADER) as res:
-        obj = RiotResponse(res.status, await res.json())
-    return (match_id, obj)
+riot_api = RiotApi()
 
-async def get_past_game(region: str, match_ids: list[str]) -> dict[str, None | RiotResponse]:
-    async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(*(_get_past_game(session, region, match_id) for match_id in match_ids), return_exceptions=True)
-    return { res[0] : None if isinstance(res, Exception) else res[1] for res in results }
+# NOTE: I have no clue how this code works tbh
+loop = asyncio.get_event_loop()
+
+async def shutdown_riot_api():
+    await riot_api.close()
+    loop.stop()
+
+for s in (signal.SIGINT, signal.SIGTERM):
+    loop.add_signal_handler(s, lambda: asyncio.create_task(shutdown_riot_api()))
 
 def status_err(res: RiotResponse) -> str:
     if 200 <= res.status < 300:
@@ -107,4 +123,3 @@ def status_err(res: RiotResponse) -> str:
         return f'Riot api error {res.status}: {RiotResponse.data["status"]["message"]}'
     else:
         return f'Unknown error {res.status}: {RiotResponse.data["status"]["message"]}'
-    

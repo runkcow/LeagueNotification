@@ -5,17 +5,18 @@ from discord.ext import tasks
 import sqlite3
 
 from dao import account_dao
-from api import riot_api
+from api.riot_api import riot_api, status_err
 import config
 from model import game_embed
 
 @tasks.loop(hours=24)
-async def update_account_details():
+async def periodic_update():
+    await riot_api.update_fields()
     try:
         accounts = account_dao.get_accounts()
         for account in accounts:
-            res = riot_api.get_username(account["puuid"])
-            err = riot_api.status_err(res)
+            res = await riot_api.get_username(account["puuid"])
+            err = status_err(res)
             if not err is None:
                 print("Bad status @ tasks.update_account_details riot_api.get_username:", err)
                 continue
