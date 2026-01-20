@@ -13,6 +13,7 @@ class RiotResponse:
         self.status = status
         self.data = data
 
+# TODO: perhaps this is a bad way of initializing api request limits
 LIMITER_SHORT = AsyncLimiter(*config.REQUEST_LIMIT_SHORT)
 LIMITER_LONG = AsyncLimiter(*config.REQUEST_LIMIT_LONG)
 
@@ -60,51 +61,49 @@ class RiotApi:
     def get_thumbnail_url(self) -> function:
         return lambda champion_name: f'https://ddragon.leagueoflegends.com/cdn/{self.version}/img/champion/{champion_name}.png'
 
+    # TODO: make this change atomic
+    #       inconsistent state can occur if an asynchronous task using these occurs while these are getting changed
+    #       however, it does not matter in this case particularly because champion_id and thumbnail_id can use older versions
+    #       so only problem is when the game has updated but this has not, in which case, there are bigger problems
+    #       solution is to check version everytime check_game_status task is ran and update fields when version changes
+    #       this however does increase response time
     async def update_fields(self):
         self.queue_id = await self.get_queue_id()
         self.version = await self.get_version()
         self.champion_id = await self.get_champion_id()
         self.thumbnail_url = self.get_thumbnail_url()
 
-    async def _request(self, fn: function, url: str, *args) -> RiotResponse:
-        # TODO: complete this middleware
-        pass
+    async def _request(self, url: str) -> RiotResponse:
+        async with LIMITER_SHORT:
+            async with LIMITER_LONG:
+                async with self.session.get(url, headers=HEADER) as res:
+                    # TODO: add status 429 check
+                    obj = RiotResponse(res.status, await res.json())
+        return obj
 
     async def get_puuid(self, username: str, tag: str) -> RiotResponse:
         url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{username}/{tag}'
-        async with self.session.get(url, headers=HEADER) as res:
-            obj = RiotResponse(res.status, await res.json())
-        return obj
+        return await self._request(url)
 
     async def get_username(self, puuid: str) -> RiotResponse:
         url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-puuid/{puuid}'
-        async with self.session.get(url, headers=HEADER) as res:
-            obj = RiotResponse(res.status, await res.json())
-        return obj 
-
+        return await self._request(url)
+        
     async def get_region(self, puuid: str) -> RiotResponse:
         url = f'https://americas.api.riotgames.com/riot/account/v1/region/by-game/lol/by-puuid/{puuid}'
-        async with self.session.get(url, headers=HEADER) as res:
-            obj = RiotResponse(res.status, await res.json())
-        return obj
+        return await self._request(url)
 
     async def get_elo(self, region: str, puuid: str) -> RiotResponse:
         url = f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}'
-        async with self.session.get(url, headers=HEADER) as res:
-            obj = RiotResponse(res.status, await res.json())
-        return obj
+        return await self._request(url)
 
     async def get_current_game(self, region: str, puuid: str) -> RiotResponse:
         url = f'https://{region}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}'
-        async with self.session.get(url, headers=HEADER) as res:
-            obj = RiotResponse(res.status, await res.json())
-        return obj
+        return await self._request(url)
 
     async def get_past_game(self, region: str, match_id: str) -> RiotResponse:
         url = f'https://{config.REGIONS[region]}.api.riotgames.com/lol/match/v5/matches/{region.upper()}_{match_id}'
-        async with self.session.get(url, headers=HEADER) as res:
-            obj = RiotResponse(res.status, await res.json())
-        return obj
+        return await self._request(url)
 
 riot_api = RiotApi()
 

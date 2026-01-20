@@ -8,6 +8,9 @@ API_KEY = os.getenv("API_KEY")
 
 DEV_SERVERS = [ 909589494490087494, 415003906951610378 ]
 
+REQUEST_LIMIT_SHORT = (20, 1)
+REQUEST_LIMIT_LONG = (100, 120)
+
 REGIONS = {
     "br1"  : "americas",
     "la1"  : "americas",
@@ -26,10 +29,6 @@ REGIONS = {
     "tw2"  : "sea",
     "vn2"  : "sea",
 }
-
-REQUEST_LIMIT_SHORT = (20, 1)
-REQUEST_LIMIT_LONG = (100, 120)
-SEMAPHORE = 20
 
 # TODO: generate grandmaster and challenger cutoffs on the fly
 TIER_LP = {
