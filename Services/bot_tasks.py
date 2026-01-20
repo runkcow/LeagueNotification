@@ -43,7 +43,7 @@ async def check_game_status(client: discord.Client):
     try:
         accounts = { account["puuid"] : account for account in account_dao.get_accounts() }
         coro = { account["puuid"] : riot_api.get_current_game(account["region"], account["puuid"]) for account in accounts.values() }
-        results = dict(zip(coro.keys(), await asyncio.gather(coro.values())))
+        results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         info = { k : { "edge" : 0, "data" : game_embed.adapt_current_game_data(v) } for k, v in results.items() }
         for puuid, account in accounts.items():
             ingame = True
@@ -60,7 +60,7 @@ async def check_game_status(client: discord.Client):
             for puuid, account in accounts.items() 
             if info[puuid]["edge"] == -1 
         }
-        results = dict(zip(coro.keys(), await asyncio.gather(coro.values())))
+        results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for puuid, data in results.items():
             info[puuid]["data"] = game_embed.adapt_past_game_data(data)
         coro = { 
@@ -69,7 +69,7 @@ async def check_game_status(client: discord.Client):
             for ppuuid in info[apuuid]["data"]["players"]
             if ppuuid[0] != "!"
         }
-        results = dict(zip(coro.keys(), await asyncio.gather(coro.values())))
+        results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for apuuid in accounts:
             for ppuuid, player in info[apuuid]["data"]["players"].items():
                 player.update(results[ppuuid])
@@ -151,6 +151,9 @@ async def check_game_status(client: discord.Client):
 #         print("Error @ bot_tasks.check_game_status accountDAO.get_account:", e)
 
 def start_bot_tasks(client: discord.Client):
-    check_league_constants.start()
-    check_account_details.start()
-    check_game_status.start(client)
+    if not check_league_constants.is_running():
+        check_league_constants.start()
+    if not check_account_details.is_running():
+        check_account_details.start()
+    if not check_game_status.is_running():
+        check_game_status.start(client)

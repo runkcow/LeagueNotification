@@ -1,6 +1,8 @@
 
 import aiohttp
 from aiolimiter import AsyncLimiter
+import certifi
+import ssl
 
 import config
 
@@ -13,24 +15,30 @@ class RiotResponse:
         self.status = status
         self.data = data
 
-# TODO: perhaps this is a bad way of initializing api request limits
+# NOTE: this might not be the best way to initialize api request limits
 LIMITER_SHORT = AsyncLimiter(*config.REQUEST_LIMIT_SHORT)
 LIMITER_LONG = AsyncLimiter(*config.REQUEST_LIMIT_LONG)
 
-# TODO: add aiolimiter middleware so that it adheres to riot api limit calls
 class RiotApi:
-    session: aiohttp.ClientSession
+    session: None | aiohttp.ClientSession
     queue_id: None | dict[int, str]
     version: None | str
     champion_id: None | dict[int, str]
     thumbnail_url: function
 
     def __init__(self):
-        self.session = aiohttp.ClientSession()
+        self.session = None
         self.queue_id = None
         self.version = None
         self.champion_id = None
         self.thumbnail_url = self.get_thumbnail_url()
+
+    async def start(self):
+        if not self.session:
+            # NOTE: I don't understand how this connection stuff work
+            #       https://github.com/aio-libs/aiohttp/issues/5375
+            #       https://docs.aiohttp.org/en/stable/client_advanced.html#ssl-control-for-tcp-sockets
+            self.session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl.create_default_context(cafile=certifi.where())))
 
     async def close(self):
         if self.session:

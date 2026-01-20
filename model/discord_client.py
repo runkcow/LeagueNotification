@@ -6,6 +6,7 @@ from services import bot_tasks
 
 class DiscordClient(discord.Client):
     async def setup_hook(self):
+        await riot_api.start()
         await riot_api.update_fields()
         bot_tasks.start_bot_tasks(self)
         return await super().setup_hook()
