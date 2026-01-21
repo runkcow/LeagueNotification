@@ -119,8 +119,8 @@ def status_err(res: RiotResponse) -> str:
     if 200 <= res.status < 300:
         return None
     elif 400 <= res.status < 500:
-        return f'Internal error {res.status}: {RiotResponse.data["status"]["message"]}'
+        return f'Internal error: {res.status}'
     elif 500 <= res.status < 600:
-        return f'Riot api error {res.status}: {RiotResponse.data["status"]["message"]}'
+        return f'Riot api error: {res.status}'
     else:
-        return f'Unknown error {res.status}: {RiotResponse.data["status"]["message"]}'
+        return f'Unknown error: {res.status}'
