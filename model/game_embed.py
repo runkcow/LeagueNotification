@@ -2,7 +2,6 @@
 import math
 from abc import ABC, abstractmethod
 import discord
-import asyncio
 
 import config
 from api.riot_api import riot_api, status_err

@@ -35,7 +35,10 @@ async def check_account_details():
     except sqlite3.Error as e:
         print("Error @ bot_tasks.update_account_details accountDAO.get_account:", e)
 
-# TODO: remake this completely lol
+# NOTE: due to api request limitations, only check discrepancies when there is an edge
+# TODO: heavily reliant on the fact that riot api services or network doesn't drop
+#       otherwise, errors will begin popping up
+#       add status and network exception checks, facade the riot api usage in a helper file
 @tasks.loop(minutes=1)
 async def check_game_status(client: discord.Client):
     try:
@@ -75,11 +78,10 @@ async def check_game_status(client: discord.Client):
             if not entry["data"] is None:
                 for ppuuid, player in entry["data"]["players"].items():
                     player.update(results[ppuuid])
-        # TODO: discrepancy detection doesn't work if there isn't an edge
         for puuid, account in accounts.items():
-            discrepancy = 0 if info[puuid]["edge"] == -1 else info[puuid]["data"]["players"][puuid]["elo"] - account["elo"]
-            if discrepancy != 0 and info[puuid]["edge"] == 0:
+            if info[puuid]["edge"] == 0:
                 continue
+            discrepancy = 0 if info[puuid]["edge"] == -1 else info[puuid]["data"]["players"][puuid]["elo"] - account["elo"]
             game = game_embed.game_factory(account, info[puuid]["data"])
             embedmsg = game.render_embed()
             try:
