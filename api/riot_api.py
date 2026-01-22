@@ -1,4 +1,5 @@
 
+from typing import Callable
 import aiohttp
 from aiolimiter import AsyncLimiter
 import certifi
@@ -24,7 +25,7 @@ class RiotApi:
     queue_id: None | dict[int, str]
     version: None | str
     champion_id: None | dict[int, str]
-    thumbnail_url: function
+    thumbnail_url: Callable[[str], str]
 
     def __init__(self):
         self.session = None
@@ -66,7 +67,7 @@ class RiotApi:
             data = await res.json()
         return { int(v["key"]): k for k, v in data["data"].items() }
 
-    def get_thumbnail_url(self) -> function:
+    def get_thumbnail_url(self) -> Callable:
         return lambda champion_name: f'https://ddragon.leagueoflegends.com/cdn/{self.version}/img/champion/{champion_name}.png'
 
     # TODO: make this change atomic

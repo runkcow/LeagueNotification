@@ -14,7 +14,7 @@ async def account_auto_complete(interaction: discord.Interaction, current: str) 
     return [discord.app_commands.Choice(name=f'{account["username"]}#{account["tag"]}', value=account["puuid"]) for account in matches]
 
 # TODO: combine this into a single ClientSession in riot_api.py
-@tree.command(name="accountadd", description="Add account to track", guilds=GUILD_LIST)
+@tree.command(name="accadd", description="Add account to track", guilds=GUILD_LIST)
 @discord.app_commands.describe(
     username="Username of account",
     tag="Tag of account",
@@ -54,7 +54,7 @@ async def account_add(interaction: discord.Interaction, username: str, tag: str,
         print("Error @ account.account_add account_dao.add_account:", e)
         await interaction.response.send_message("Internal error", ephemeral=True)
     
-@tree.command(name="accountchngchnl", description="Change output channel of account", guilds=GUILD_LIST)
+@tree.command(name="accchngchnl", description="Change output channel of account", guilds=GUILD_LIST)
 @discord.app_commands.describe(
     puuid="Account to update",
     channel="New output channel"
@@ -68,7 +68,7 @@ async def account_change_channel(interaction: discord.Interaction, puuid: str, c
         await interaction.response.send_message("Internal error", ephemeral=True)
 account_change_channel.autocomplete("puuid")(account_auto_complete)
 
-@tree.command(name="accountrmv", description="Remove account from tracking", guilds=GUILD_LIST)
+@tree.command(name="accrmv", description="Remove account from tracking", guilds=GUILD_LIST)
 @discord.app_commands.describe(
     puuid="Account to remove"
 )
@@ -81,7 +81,7 @@ async def account_remove(interaction: discord.Interaction, puuid: str):
         await interaction.response.send_message("Internal error", ephemeral=True)
 account_remove.autocomplete("puuid")(account_auto_complete)
 
-@tree.command(name="accountelo", description="Display account elo", guilds=GUILD_LIST)
+@tree.command(name="accelo", description="Display account elo", guilds=GUILD_LIST)
 @discord.app_commands.describe(
     puuid="Account to display"
 )

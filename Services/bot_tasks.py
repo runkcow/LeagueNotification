@@ -53,9 +53,9 @@ async def check_game_status(client: discord.Client):
             if results[puuid].status != 404 and not err is None:
                 print("Bad status @ bot_tasks.check_game_status riot_api.get_current_game:", err)
             if account["match_id"] is None and not info[puuid]["data"] is None:
-                entry["edge"] = 1
+                info[puuid]["edge"] = 1
             elif not account["match_id"] is None and info[puuid]["data"] is None:
-                entry["edge"] = -1
+                info[puuid]["edge"] = -1
         # updates data with past game if falling edge is detected
         coro = { 
             account["puuid"] : riot_api.get_past_game(account["region"], account["match_id"]) 
@@ -67,11 +67,10 @@ async def check_game_status(client: discord.Client):
             info[puuid]["data"] = game_embed.adapt_past_game_data(res.data) 
         # gets teammate data
         coro = { 
-            ppuuid : game_embed.get_ranked_info(account["region"], ppuuid) 
+            ppuuid : game_embed.get_ranked_info(account["region"], ppuuid if ppuuid[0] != "!" else None) 
             for entry in info.values() 
             if not entry["data"] is None
             for ppuuid in entry["data"]["players"]
-            if  ppuuid[0] != "!"
         }
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for entry in info.values():
