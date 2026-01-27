@@ -16,7 +16,8 @@ class RiotResponse:
         self.status = status
         self.data = data
 
-# NOTE: this might not be the best way to initialize api request limits
+# TODO: when the api request limit is reached, it'll wait until the limit is gone
+#       this is terrible for discord bot response so the behaviour has to be changed to return an exception instead
 LIMITER_SHORT = AsyncLimiter(*config.REQUEST_LIMIT_SHORT)
 LIMITER_LONG = AsyncLimiter(*config.REQUEST_LIMIT_LONG)
 

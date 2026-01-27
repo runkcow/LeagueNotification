@@ -30,7 +30,7 @@ async def check_account_details():
             if any(account[k] != v for k, v in dict.items()):
                 try:
                     account_dao.update_account(account["puuid"], dict)
-                except sqlite3.Error as e: # might require more precise error deteciton
+                except sqlite3.Error as e: # might require more precise error detection
                     print("Error @ bot_tasks.update_account_details accountDAO.update_account:", e)
     except sqlite3.Error as e:
         print("Error @ bot_tasks.update_account_details accountDAO.get_account:", e)
@@ -59,6 +59,7 @@ async def check_game_status(client: discord.Client):
             err = status_err(results[puuid])
             if results[puuid].status != 404 and not err is None:
                 print("Bad status @ bot_tasks.check_game_status riot_api.get_current_game:", err)
+            # TODO: change the logic to use last_match_id
             elif account["match_id"] is None and not info[puuid]["data"] is None:
                 info[puuid]["edge"] = 1
                 info[puuid]["match_id"] = info[puuid]["data"]["match_id"] # i don't think this is useful
@@ -78,14 +79,15 @@ async def check_game_status(client: discord.Client):
             if not err is None:
                 print("Bad status @ bot_tasks.check_game_status riot_api.get_latest_game:", err)
                 continue
-            if not accounts[puuid]["last_match_id"] is None and accounts[puuid]["last_match_id"] != res.data[0]:
+            match_id = res.data[0].split("_")[1]
+            if accounts[puuid]["last_match_id"] != match_id:
                 info[puuid]["edge"] = -1
-                info[puuid]["match_id"] = res.data[0]
+                info[puuid]["match_id"] = match_id
         # updates data with past game if falling edge is detected
         coro = { 
             puuid : riot_api.get_past_game(account["region"], info[puuid]["match_id"])
             for puuid, account in accounts.items() 
-            if info[puuid]["edge"] == -1 
+            if info[puuid]["edge"] == -1
         }
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for puuid, res in results.items():
@@ -137,7 +139,7 @@ async def check_game_status(client: discord.Client):
                         print("Error @ bot_tasks.check_game_status discord:", e)
                         continue
             except sqlite3.Error as e:
-                print("Error @ bot_tasks.check_game_status account_dao.get_account_servers|update_account_match_id:", e) # TODO: not very clear
+                print("Error @ bot_tasks.check_game_status account_dao.get_account_servers|update_account_match_id|update_account_last_match_id:", e) # TODO: not very clear
                 continue
     except sqlite3.Error as e:
         print("Error @ bot_tasks.check_game_status accountDAO.get_account:", e)
