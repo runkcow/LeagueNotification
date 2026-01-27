@@ -113,6 +113,13 @@ class RiotApi:
     async def get_past_game(self, region: str, match_id: str) -> RiotResponse:
         url = f'https://{config.REGIONS[region]}.api.riotgames.com/lol/match/v5/matches/{region.upper()}_{match_id}'
         return await self._request(url)
+    
+    # NOTE: This returns a list of matches, only asking for the most recent so it is a list of 1 size
+    #       Given the possibility of bad status, cannot update RiotResponse.data = RiotResponse.data[0] 
+    #       as that wouldn't work with bad status json
+    async def get_latest_game(self, region: str, puuid: str) -> RiotResponse:
+        url = f'https://{config.REGIONS[region]}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count=1'
+        return await self._request(url)
 
 riot_api = RiotApi()
 

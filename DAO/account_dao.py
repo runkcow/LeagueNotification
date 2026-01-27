@@ -37,6 +37,10 @@ def update_account_match_id(puuid: str, match_id: str):
     with getconn() as conn:
         conn.execute("UPDATE accounts SET match_id = ? WHERE puuid = ?", (match_id, puuid))
 
+def update_account_last_match_id(puuid: str, match_id: str):
+    with getconn() as conn:
+        conn.execute("UPDATE accounts SET last_match_id = ? WHERE puuid = ?", (match_id, puuid))
+
 MUTABLE = { "username", "tag", "elo", "wins", "losses", "region", "match_id" }
 def update_account(puuid: str, dict: dict):
     updates = { k: v for k, v in dict.items() if k in MUTABLE }

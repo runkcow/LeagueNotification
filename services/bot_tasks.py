@@ -46,19 +46,44 @@ async def check_game_status(client: discord.Client):
         # get current game
         coro = { account["puuid"] : riot_api.get_current_game(account["region"], account["puuid"]) for account in accounts.values() }
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
-        info = { puuid : { "edge" : 0, "data" : game_embed.adapt_current_game_data(res.data) if 200 <= res.status < 300 else None } for puuid, res in results.items() }
+        info = { 
+            puuid : {
+                "edge" : 0,
+                "match_id": None, 
+                "data" : game_embed.adapt_current_game_data(res.data) if 200 <= res.status < 300 else None 
+            } 
+            for puuid, res in results.items() 
+        }
         # edge detection
         for puuid, account in accounts.items():
             err = status_err(results[puuid])
             if results[puuid].status != 404 and not err is None:
                 print("Bad status @ bot_tasks.check_game_status riot_api.get_current_game:", err)
-            if account["match_id"] is None and not info[puuid]["data"] is None:
+            elif account["match_id"] is None and not info[puuid]["data"] is None:
                 info[puuid]["edge"] = 1
+                info[puuid]["match_id"] = info[puuid]["data"]["match_id"] # i don't think this is useful
             elif not account["match_id"] is None and info[puuid]["data"] is None:
                 info[puuid]["edge"] = -1
+                info[puuid]["match_id"] = account["match_id"]
+        # for players that aren't in game and do not have an edge, check their latest match and see if it differs
+        # NOTE: kinda shoehorned this code in, might not have the best implementation
+        coro = {
+            puuid : riot_api.get_latest_game(account["region"], puuid)
+            for puuid, account in accounts.items()
+            if info[puuid]["edge"] == 0 and info[puuid]["data"] is None
+        }
+        results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
+        for puuid, res in results.items():
+            err = status_err(res)
+            if not err is None:
+                print("Bad status @ bot_tasks.check_game_status riot_api.get_latest_game:", err)
+                continue
+            if not accounts[puuid]["last_match_id"] is None and accounts[puuid]["last_match_id"] != res.data[0]:
+                info[puuid]["edge"] = -1
+                info[puuid]["match_id"] = res.data[0]
         # updates data with past game if falling edge is detected
         coro = { 
-            account["puuid"] : riot_api.get_past_game(account["region"], account["match_id"]) 
+            puuid : riot_api.get_past_game(account["region"], info[puuid]["match_id"])
             for puuid, account in accounts.items() 
             if info[puuid]["edge"] == -1 
         }
@@ -93,15 +118,21 @@ async def check_game_status(client: discord.Client):
                         # TODO: make dedicated dao methods for these for atomicity
                         if info[puuid]["edge"] == 1:
                             msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).send(embed=embedmsg)
-                            account_dao.update_account_match_id(account["puuid"], info[puuid]["data"]["match_id"])
-                            account_dao.update_server_message(account["puuid"], server["server"], msg.id)
+                            account_dao.update_account_match_id(puuid, info[puuid]["data"]["match_id"])
+                            account_dao.update_server_message(puuid, server["server"], msg.id)
                         if info[puuid]["edge"] == -1:
-                            msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).fetch_message(int(server["message"]))
-                            await msg.edit(embed=embedmsg)
-                            account_dao.update_account_match_id(account["puuid"], None)
-                            if account["elo"] != info[puuid]["data"]["players"][account["puuid"]]["elo"]:
-                                account_dao.update_account_elo(account["puuid"], info[puuid]["data"]["players"][account["puuid"]]["elo"])
-                            account_dao.update_server_message(account["puuid"], server["server"], None)
+                            if not server["message"] is None:
+                                msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).fetch_message(int(server["message"]))
+                                await msg.edit(embed=embedmsg)
+                                account_dao.update_account_match_id(puuid, None)
+                                if account["elo"] != info[puuid]["data"]["players"][puuid]["elo"]:
+                                    account_dao.update_account_elo(puuid, info[puuid]["data"]["players"][puuid]["elo"])
+                                account_dao.update_server_message(puuid, server["server"], None)
+                            else:
+                                msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).send(embed=embedmsg)
+                                if account["elo"] != info[puuid]["data"]["players"][puuid]["elo"]:
+                                    account_dao.update_account_elo(puuid, info[puuid]["data"]["players"][puuid]["elo"])
+                        account_dao.update_account_last_match_id(puuid, info[puuid]["match_id"])
                     except (discord.Forbidden, discord.NotFound, discord.HTTPException) as e:
                         print("Error @ bot_tasks.check_game_status discord:", e)
                         continue
