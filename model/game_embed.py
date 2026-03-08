@@ -41,31 +41,6 @@ def adapt_current_game_data(data: dict):
         } for i, player in enumerate(data["participants"]) },
     }
 
-# NOTE: deprecated
-# async def get_current_game_data(account: dict) -> dict:
-#     res = await riot_api.get_current_game(account["region"], account["puuid"])
-#     if res.status == 404:
-#         return None
-#     err = status_err(res)
-#     if not err is None:
-#         print("Bad status @ game_embed._get_ranked_info riot_api.get_current_game:", err)
-#         return None
-#     data = res.data
-#     return {
-#         "puuid": account["puuid"],
-#         "username": account["username"],
-#         "tag": account["tag"],
-#         "region": account["region"],
-#         "match_id": data["gameId"],
-#         "queue_id": data["gameQueueConfigId"],
-#         "start_time": data["gameStartTime"] // 1000,
-#         "players": { (player["puuid"] if not player["puuid"] is None else f'!{i}') : { 
-#             "champion": player["championId"],
-#             **_get_ranked_info(account["region"], player["puuid"]),
-#             "team": player["teamId"], # playerSubteamId does not exist for spectatorV5
-#         } for i, player in enumerate(data["participants"]) },
-#     }
-
 def adapt_past_game_data(data: dict) -> dict:
     return {
         "match_id": data["metadata"]["matchId"],
@@ -84,38 +59,6 @@ def adapt_past_game_data(data: dict) -> dict:
         } for i, player in enumerate(data["info"]["participants"]) },
         "remake": data["info"]["participants"][0]["gameEndedInEarlySurrender"], # NOTE: check if this works
     }
-
-# NOTE: deprecated
-# async def get_past_game_data(account: dict, match_id: str) -> dict:
-#     res = await riot_api.get_past_game(account["region"], match_id)
-#     err = status_err(res)
-#     if not err is None:
-#         print("Bad status @ game_embed._get_ranked_info riot_api.get_past_game:", err)
-#         return None
-#     data = res.data
-#     return {
-#         "puuid": account["puuid"],
-#         "username": account["username"],
-#         "tag": account["tag"],
-#         "region": account["region"],
-#         "old_elo": account["elo"],
-#         "match_id": data["metadata"]["matchId"],
-#         "queue_id": data["info"]["queueId"],
-#         "start_time": data["info"]["gameStartTimestamp"] // 1000,
-#         "end_time": data["info"]["gameEndTimestamp"] // 1000,
-#         "players": { (player["puuid"] if not player["puuid"] is None else f'!{i}') : {
-#             "champion": player["championId"],
-#             "assists": player["assists"],
-#             "deaths": player["deaths"],
-#             "kills": player["kills"],
-#             "damage": player["totalDamageDealtToChampions"],
-#             "win": player["win"],
-#             **_get_ranked_info(account["region"], player["puuid"]),
-#             "team": player["teamId"],
-#             "subteam": player["playerSubteamId"]
-#         } for i, player in enumerate(data["info"]["participants"]) },
-#         "remake": data["info"]["participants"][0]["gameEndedInEarlySurrender"], # NOTE: check if this works
-#     }
 
 # TODO: separate account data and game data
 class Game(ABC):
