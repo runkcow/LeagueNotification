@@ -6,6 +6,7 @@ import asyncio
 
 from dao import account_dao
 from api.riot_api import riot_api, status_err
+from api import api_adapter
 import config
 from model import game_embed
 
@@ -15,23 +16,45 @@ async def check_league_constants():
         return
     await riot_api.update_fields()
 
+async def get_ranked_info(region: str, puuid: str) -> dict:
+    if puuid is None:
+        return api_adapter.convert_ranked_data() 
+    res = await riot_api.get_elo(region, puuid)
+    if not res.success:
+        return api_adapter.convert_ranked_data()
+    return api_adapter.convert_ranked_data(next((d for d in res.data if d["queueType"] == "RANKED_SOLO_5x5"), None))
+
 @tasks.loop(hours=24)
 async def check_account_details():
     try:
         accounts = account_dao.get_accounts()
+        coro = {
+            account["puuid"] : riot_api.get_username(account["puuid"])
+            for account in accounts
+        }
+        results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for account in accounts:
-            res = await riot_api.get_username(account["puuid"])
-            err = status_err(res)
-            if not err is None:
-                print("Bad status @ bot_tasks.update_account_details riot_api.get_username:", err)
+            if not results[account["puuid"]].success:
                 continue
-            data = res.data
-            dict = { config.TRANSLATE_ACCOUNT_DTO[k]: v for k, v in data.items() }
-            if any(account[k] != v for k, v in dict.items()):
+            if any(account[config.TRANSLATE_ACCOUNT_DTO[k]] != v for k, v in results[account["puuid"]].data.items()):
                 try:
                     account_dao.update_account(account["puuid"], dict)
                 except sqlite3.Error as e: # might require more precise error detection
                     print("Error @ bot_tasks.update_account_details accountDAO.update_account:", e)
+
+        # for account in accounts:
+        #     res = await riot_api.get_username(account["puuid"])
+        #     err = status_err(res)
+        #     if err is not None:
+        #         print("Bad status @ bot_tasks.update_account_details riot_api.get_username:", err)
+        #         continue
+        #     data = res.data
+        #     dict = { config.TRANSLATE_ACCOUNT_DTO[k]: v for k, v in data.items() }
+        #     if any(account[k] != v for k, v in dict.items()):
+        #         try:
+        #             account_dao.update_account(account["puuid"], dict)
+        #         except sqlite3.Error as e: # might require more precise error detection
+        #             print("Error @ bot_tasks.update_account_details accountDAO.update_account:", e)
     except sqlite3.Error as e:
         print("Error @ bot_tasks.update_account_details accountDAO.get_account:", e)
 
@@ -44,32 +67,32 @@ async def check_game_status(client: discord.Client):
     try:
         accounts = { account["puuid"] : account for account in account_dao.get_accounts() }
         # get current game
-        coro = { account["puuid"] : riot_api.get_current_game(account["region"], account["puuid"]) for account in accounts.values() }
+        coro = { 
+            account["puuid"] : riot_api.get_current_game(account["region"], account["puuid"]) 
+            for account in accounts.values() 
+        }
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
-        info = { 
+        info = {
             puuid : {
                 "edge" : 0,
                 "match_id": None, 
                 "data" : game_embed.adapt_current_game_data(res.data) if 200 <= res.status < 300 else None 
-            } 
+            }
             for puuid, res in results.items() 
         }
         
         # edge detection
         for puuid, account in accounts.items():
-            err = status_err(results[puuid])
-            if results[puuid].status != 404 and not err is None:
-                print("Bad status @ bot_tasks.check_game_status riot_api.get_current_game:", err)
-            # TODO: change the logic to use last_match_id
-            elif account["match_id"] is None and not info[puuid]["data"] is None:
+            if not results[puuid].success:
+                continue
+            if account["match_id"] is None and info[puuid]["data"] is not None:
                 info[puuid]["edge"] = 1
-                info[puuid]["match_id"] = info[puuid]["data"]["match_id"] # i don't think this is useful
-            elif not account["match_id"] is None and info[puuid]["data"] is None:
+                info[puuid]["match_id"] = info[puuid]["data"]["match_id"] # this is not used, only here for book keeping
+            elif account["match_id"] is not None and info[puuid]["data"] is None:
                 info[puuid]["edge"] = -1
                 info[puuid]["match_id"] = account["match_id"]
         
-        # for players that aren't in game and do not have an edge, check their latest match and see if it differs
-        # NOTE: kinda shoehorned this code in, might not have the best implementation
+        # for accounts that aren't in game and do not have an edge, check their latest match and see if it differs
         coro = {
             puuid : riot_api.get_latest_game(account["region"], puuid)
             for puuid, account in accounts.items()
@@ -77,11 +100,9 @@ async def check_game_status(client: discord.Client):
         }
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for puuid, res in results.items():
-            err = status_err(res)
-            if not err is None:
-                print("Bad status @ bot_tasks.check_game_status riot_api.get_latest_game:", err)
+            if not res.success:
                 continue
-            match_id = res.data[0].split("_")[1]
+            match_id = res.data.split("_")[1]
             if accounts[puuid]["last_match_id"] != match_id:
                 info[puuid]["edge"] = -1
                 info[puuid]["match_id"] = match_id
@@ -94,22 +115,22 @@ async def check_game_status(client: discord.Client):
         }
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for puuid, res in results.items():
-            err = status_err(res)
-            if not err is None:
-                print("Bad status @ bot_tasks.check_game_status riot_api.get_past_game:", err)
+            if not res.success:
                 continue
             info[puuid]["data"] = game_embed.adapt_past_game_data(res.data) 
         
         # gets teammate data
-        coro = { 
-            ppuuid : game_embed.get_ranked_info(account["region"], ppuuid if ppuuid[0] != "!" else None) 
+        async def awaitNone():
+            return None
+        coro = {
+            ppuuid : get_ranked_info(account["region"], ppuuid if ppuuid[0] != "!" else awaitNone()) 
             for entry in info.values() 
-            if not entry["data"] is None
+            if entry["data"] is not None
             for ppuuid in entry["data"]["players"]
         }
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for entry in info.values():
-            if not entry["data"] is None:
+            if entry["data"] is not None:
                 for ppuuid, player in entry["data"]["players"].items():
                     player.update(results[ppuuid])
         
@@ -133,7 +154,7 @@ async def check_game_status(client: discord.Client):
                             account_dao.update_account_match_id(puuid, info[puuid]["data"]["match_id"])
                             account_dao.update_server_message(puuid, server["server"], msg.id)
                         if info[puuid]["edge"] == -1:
-                            if not server["message"] is None:
+                            if server["message"] is not None:
                                 msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).fetch_message(int(server["message"]))
                                 await msg.edit(embed=embedmsg)
                                 account_dao.update_account_match_id(puuid, None)

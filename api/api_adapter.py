@@ -2,7 +2,7 @@
 import helper
 
 def convert_ranked_data(data: dict = None) -> dict:
-    if not data:
+    if data is None:
         return {
             "elo": 0,
             "wins": 0,

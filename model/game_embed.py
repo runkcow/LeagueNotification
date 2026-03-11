@@ -4,8 +4,9 @@ from abc import ABC, abstractmethod
 import discord
 
 import config
-from api.riot_api import riot_api, status_err
-from api import api_adapter
+from api.riot_api import riot_api
+# from api.riot_api import riot_api, status_err
+# from api import api_adapter
 import helper
 
 def get_discrepancy_embed(account: dict, correct_elo: int) -> discord.Embed:
@@ -18,24 +19,12 @@ def get_discrepancy_embed(account: dict, correct_elo: int) -> discord.Embed:
         colour=7419530
     )
 
-async def get_ranked_info(region: str, puuid: str) -> dict:
-    if puuid is None:
-        return api_adapter.convert_ranked_data() 
-    res = await riot_api.get_elo(region, puuid)
-    if res.status == 400: # TODO: I don't think this is correct, study how streamer mode affects the api calls
-        return api_adapter.convert_ranked_data()
-    err = status_err(res)
-    if not err is None:
-        print("Bad status @ game_embed._get_ranked_info riot_api.get_elo:", err)
-        return {}
-    return api_adapter.convert_ranked_data(next((d for d in res.data if d["queueType"] == "RANKED_SOLO_5x5"), None))
-
 def adapt_current_game_data(data: dict):
     return {
         "match_id": data["gameId"],
         "queue_id": data["gameQueueConfigId"],
         "start_time": data["gameStartTime"] // 1000,
-        "players": { (player["puuid"] if not player["puuid"] is None else f'!{i}') : { 
+        "players": { (player["puuid"] if player["puuid"] is not None else f'!{i}') : { 
             "champion": player["championId"],
             "team": player["teamId"], # playerSubteamId does not exist for spectatorV5
         } for i, player in enumerate(data["participants"]) },
@@ -47,7 +36,7 @@ def adapt_past_game_data(data: dict) -> dict:
         "queue_id": data["info"]["queueId"],
         "start_time": data["info"]["gameStartTimestamp"] // 1000,
         "end_time": data["info"]["gameEndTimestamp"] // 1000,
-        "players": { (player["puuid"] if not player["puuid"] is None else f'!{i}') : {
+        "players": { (player["puuid"] if player["puuid"] is not None else f'!{i}') : {
             "champion": player["championId"],
             "assists": player["assists"],
             "deaths": player["deaths"],
@@ -145,7 +134,7 @@ class Game(ABC):
                 dispdata["losses"][puuid] = ""
 
         # team name check
-        if not data["players"][account["puuid"]].get("subteam") is None and data["players"][account["puuid"]]["subteam"] != 0: # dupe
+        if data["players"][account["puuid"]].get("subteam") is not None and data["players"][account["puuid"]]["subteam"] != 0: # dupe
             strlen["champion"] = max(strlen["champion"], config.SUB_TEAM_LEN)
 
         # truncate champion if text wrap (on pc) happens
@@ -169,7 +158,7 @@ class Game(ABC):
         # gamedata representation
         teams = {}
         for puuid, player in data["players"].items():
-            team = player["subteam"] if not player.get("subteam") is None and player["subteam"] != 0 else player["team"] # dupe
+            team = player["subteam"] if player.get("subteam") is not None and player["subteam"] != 0 else player["team"] # dupe
             if teams.get(team) is None:
                 teams[team] = []
             playerstr = [f'\n{dispdata["champion"][puuid][:strlen["champion"]]:{strlen["champion"]}}']

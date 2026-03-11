@@ -21,28 +21,22 @@ async def account_auto_complete(interaction: discord.Interaction, current: str) 
     channel="Output channel"
 )
 async def account_add(interaction: discord.Interaction, username: str, tag: str, channel: discord.TextChannel):
+    # get puuid
     res = await riot_api.get_puuid(username, tag)
-    if res.status == 404:
-        await interaction.response.send_message("Account not found", ephemeral=True)
+    if not res.success:
+        await interaction.response.send_message(status_err(res), ephemeral=True)
         return
-    err = status_err(res)
-    if not err is None:
-        print("Bad status @ account.account_add riot_api.get_puuid:", err)
-        await interaction.response.send_message(err, ephemeral=True)
+    puuid = res.data
+    # get region
+    res = await riot_api.get_region(puuid)
+    if not res.success:
+        await interaction.response.send_message(status_err(res), ephemeral=True)
         return
-    puuid = res.data["puuid"]
-    res = await riot_api.get_region(puuid) # hopefully this works flawlessly
-    err = status_err(res)
-    if not err is None:
-        print("Bad status @ account.account_add riot_api.get_region:", err)
-        await interaction.response.send_message(err, ephemeral=True)
-        return
-    region = res.data["region"]
+    region = res.data
+    # get elo
     res = await riot_api.get_elo(region, puuid)
-    err = status_err(res)
-    if not err is None:
-        print("Bad status @ account.account_add riot_api.get_elo:", err)
-        await interaction.response.send_message(err, ephemeral=True)
+    if not res.success:
+        await interaction.response.send_message(status_err(res), ephemeral=True)
         return
     data = api_adapter.convert_ranked_data(next((d for d in res.data if d["queueType"] == "RANKED_SOLO_5x5"), None))
     try:

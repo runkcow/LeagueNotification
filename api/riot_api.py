@@ -10,8 +10,9 @@ import config
 HEADER = { 'X-Riot-Token': config.API_KEY }
 
 class RiotResponse:
+    success: bool
     status: int
-    data: None | dict | list
+    data: None | dict | list | str
     def __init__(self, status, data):
         self.status = status
         self.data = data
@@ -91,36 +92,109 @@ class RiotApi:
                     obj = RiotResponse(res.status, await res.json())
         return obj
 
+    # data : str
+    #      | dict
     async def get_puuid(self, username: str, tag: str) -> RiotResponse:
         url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{username}/{tag}'
-        return await self._request(url)
+        obj = await self._request(url)
+        obj.success = 200 <= obj.status < 300
+        if not obj.success:
+            obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status @ get_puuid | {url} : {obj.data}')
+        else:
+            obj.data = obj.data["puuid"]
+        return obj
 
+    # data : dict 
+    #        - puuid
+    #        - gameName
+    #        - tagLine
+    #      | str
     async def get_username(self, puuid: str) -> RiotResponse:
         url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-puuid/{puuid}'
-        return await self._request(url)
+        obj = await self._request(url)
+        obj.success = 200 <= obj.status < 300
+        if not obj.success:
+            try:
+                obj.data = obj.data.get("status", {}).get("message", obj.data)
+            except KeyError:
+                pass
+            print(f'Bad status @ get_username | {url} : {obj.data}')
+        return obj
         
+    # data : str
+    #      | dict
     async def get_region(self, puuid: str) -> RiotResponse:
         url = f'https://americas.api.riotgames.com/riot/account/v1/region/by-game/lol/by-puuid/{puuid}'
-        return await self._request(url)
+        obj = await self._request(url)
+        obj.success = 200 <= obj.status < 300
+        if not obj.success:
+            obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status @ get_region | {url} : {obj.data}')
+        else:
+            obj.data = obj.data["region"]
+        return obj
 
+    # data : list
+    #        - dict
+    #          - leagueId
+    #          - queueType
+    #          - tier
+    #          - rank
+    #          - puuid
+    #          - leaguePoints
+    #          - wins
+    #          - losses
+    #          - veteran
+    #          - inactive
+    #          - freshBlood
+    #          - hotStreak
+    #      | str
     async def get_elo(self, region: str, puuid: str) -> RiotResponse:
         url = f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}'
-        return await self._request(url)
+        obj = await self._request(url)
+        obj.success = 200 <= obj.status < 300
+        if not obj.success:
+            obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status @ get_elo | {url} : {obj.data}')
+        return obj
 
+    # data : dict
+    #        - https://developer.riotgames.com/apis#spectator-v5/GET_getCurrentGameInfoByPuuid
+    #      | str
     async def get_current_game(self, region: str, puuid: str) -> RiotResponse:
         url = f'https://{region}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}'
-        return await self._request(url)
+        obj = await self._request(url)
+        obj.success = 200 <= obj.status < 300 or obj.status == 404
+        if not obj.success:
+            obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status @ get_current_game | {url} : {obj.data}')
+        return obj
 
+    # data : dict
+    #        - https://developer.riotgames.com/apis#match-v5/GET_getMatch
+    #      | str
     async def get_past_game(self, region: str, match_id: str) -> RiotResponse:
         url = f'https://{config.REGIONS[region]}.api.riotgames.com/lol/match/v5/matches/{region.upper()}_{match_id}'
-        return await self._request(url)
+        obj = await self._request(url)
+        obj.success = 200 <= obj.status < 300
+        if not obj.success:
+            obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status @ get_past_game | {url} : {obj.data}')
+        return obj
     
-    # NOTE: This returns a list of matches, only asking for the most recent so it is a list of 1 size
-    #       Given the possibility of bad status, cannot update RiotResponse.data = RiotResponse.data[0] 
-    #       as that wouldn't work with bad status json
+    # data : str
+    #      | dict
     async def get_latest_game(self, region: str, puuid: str) -> RiotResponse:
         url = f'https://{config.REGIONS[region]}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count=1'
-        return await self._request(url)
+        obj = await self._request(url)
+        obj.success = 200 <= obj.status < 300
+        if not obj.success:
+            obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status @ get_latest_game | {url} : {obj.data}')
+        else:
+            obj.data = obj.data[0]
+        return obj
 
 riot_api = RiotApi()
 
