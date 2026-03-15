@@ -88,8 +88,12 @@ class RiotApi:
         async with LIMITER_SHORT:
             async with LIMITER_LONG:
                 async with self.session.get(url, headers=HEADER) as res:
-                    # TODO: add status 429 check
-                    obj = RiotResponse(res.status, await res.json())
+                    try:
+                        data = await res.json()
+                    except aiohttp.ContentTypeError:
+                        # data = await res.text()
+                        data = f'Non-JSON response ({res.status})'
+                    obj = RiotResponse(res.status, data)
         return obj
 
     # data : str
@@ -99,8 +103,9 @@ class RiotApi:
         obj = await self._request(url)
         obj.success = 200 <= obj.status < 300
         if not obj.success:
-            obj.data = obj.data.get("status", {}).get("message", obj.data)
-            print(f'Bad status @ get_puuid | {url} : {obj.data}')
+            if isinstance(obj.data, dict):
+                obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status {obj.status} @ get_puuid | {url} : {obj.data}')
         else:
             obj.data = obj.data["puuid"]
         return obj
@@ -115,11 +120,9 @@ class RiotApi:
         obj = await self._request(url)
         obj.success = 200 <= obj.status < 300
         if not obj.success:
-            try:
+            if isinstance(obj.data, dict):
                 obj.data = obj.data.get("status", {}).get("message", obj.data)
-            except KeyError:
-                pass
-            print(f'Bad status @ get_username | {url} : {obj.data}')
+            print(f'Bad status {obj.status} @ get_username | {url} : {obj.data}')
         return obj
         
     # data : str
@@ -129,8 +132,9 @@ class RiotApi:
         obj = await self._request(url)
         obj.success = 200 <= obj.status < 300
         if not obj.success:
-            obj.data = obj.data.get("status", {}).get("message", obj.data)
-            print(f'Bad status @ get_region | {url} : {obj.data}')
+            if isinstance(obj.data, dict):
+                obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status {obj.status} @ get_region | {url} : {obj.data}')
         else:
             obj.data = obj.data["region"]
         return obj
@@ -154,9 +158,10 @@ class RiotApi:
         url = f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}'
         obj = await self._request(url)
         obj.success = 200 <= obj.status < 300
-        if not obj.success:
-            obj.data = obj.data.get("status", {}).get("message", obj.data)
-            print(f'Bad status @ get_elo | {url} : {obj.data}')
+        if not obj.success: 
+            if isinstance(obj.data, dict):
+                obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status {obj.status} @ get_elo | {url} : {obj.data}')
         return obj
 
     # data : dict
@@ -167,8 +172,9 @@ class RiotApi:
         obj = await self._request(url)
         obj.success = 200 <= obj.status < 300 or obj.status == 404
         if not obj.success:
-            obj.data = obj.data.get("status", {}).get("message", obj.data)
-            print(f'Bad status @ get_current_game | {url} : {obj.data}')
+            if isinstance(obj.data, dict):
+                obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status {obj.status} @ get_current_game | {url} : {obj.data}')
         return obj
 
     # data : dict
@@ -179,8 +185,9 @@ class RiotApi:
         obj = await self._request(url)
         obj.success = 200 <= obj.status < 300
         if not obj.success:
-            obj.data = obj.data.get("status", {}).get("message", obj.data)
-            print(f'Bad status @ get_past_game | {url} : {obj.data}')
+            if isinstance(obj.data, dict):
+                obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status {obj.status} @ get_past_game | {url} : {obj.data}')
         return obj
     
     # data : str
@@ -190,8 +197,9 @@ class RiotApi:
         obj = await self._request(url)
         obj.success = 200 <= obj.status < 300
         if not obj.success:
-            obj.data = obj.data.get("status", {}).get("message", obj.data)
-            print(f'Bad status @ get_latest_game | {url} : {obj.data}')
+            if isinstance(obj.data, dict):
+                obj.data = obj.data.get("status", {}).get("message", obj.data)
+            print(f'Bad status {obj.status} @ get_latest_game | {url} : {obj.data}')
         else:
             obj.data = obj.data[0]
         return obj

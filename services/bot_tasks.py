@@ -116,14 +116,19 @@ async def check_game_status(client: discord.Client):
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for puuid, res in results.items():
             if not res.success:
+                # NOTE: not sure if this is the behaviour i want
+                #       for some reason, sometimes, it fails to grab the past match
+                #       i believe its because it hits it right as the match ends
+                #       so the player is not in an active game but their match hasn't been added to past games yet
+                #       which is why it returns no data
+                #       should be fine to do this since it'll just try again next cycle update 
+                info[puuid]["edge"] == 0 
                 continue
             info[puuid]["data"] = game_embed.adapt_past_game_data(res.data) 
         
         # gets teammate data
-        async def awaitNone():
-            return None
         coro = {
-            ppuuid : get_ranked_info(account["region"], ppuuid if ppuuid[0] != "!" else awaitNone()) 
+            ppuuid : get_ranked_info(account["region"], ppuuid if ppuuid[0] != "!" else None) 
             for entry in info.values() 
             if entry["data"] is not None
             for ppuuid in entry["data"]["players"]
