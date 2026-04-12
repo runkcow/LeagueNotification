@@ -31,7 +31,9 @@ def adapt_current_game_data(data: dict):
     }
 
 def adapt_past_game_data(data: dict) -> dict:
+    # NOTE: sometimes, endOfGameResult is equal to "Abort_Unexpected" which bricks it
     return {
+        "endOfGameResult": data["info"]["endOfGameResult"] == "GameComplete",
         "match_id": data["metadata"]["matchId"],
         "queue_id": data["info"]["queueId"],
         "start_time": data["info"]["gameStartTimestamp"] // 1000,
@@ -46,7 +48,7 @@ def adapt_past_game_data(data: dict) -> dict:
             "team": player["teamId"],
             "subteam": player["playerSubteamId"]
         } for i, player in enumerate(data["info"]["participants"]) },
-        "remake": data["info"]["participants"][0]["gameEndedInEarlySurrender"], # NOTE: check if this works
+        "remake": data["info"]["participants"][0]["gameEndedInEarlySurrender"] if len(data["info"]["participants"]) > 0 else None, 
     }
 
 # TODO: separate account data and game data

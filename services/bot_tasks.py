@@ -146,6 +146,12 @@ async def check_game_status(client: discord.Client):
             if info[puuid]["data"] is None:
                 print(f'Strange Error : {puuid} | {info[puuid]} somehow has an edge while having no game data')
                 continue
+            # NOTE: this should only happen when latest match is different, no detected edges 
+            #       however, it'd look like a falling edge
+            if not info[puuid]["data"]["endOfGameResult"]:
+                print(f'Strange Error : {puuid} | {info[puuid]} game abort unexpected')
+                account_dao.update_account_last_match_id(puuid, info[puuid]["match_id"])
+                continue
             discrepancy = 0 if info[puuid]["edge"] == -1 else info[puuid]["data"]["players"][puuid]["elo"] - account["elo"]
             game = game_embed.game_factory(account, info[puuid]["data"])
             embedmsg = game.render_embed()
