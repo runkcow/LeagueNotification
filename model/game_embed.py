@@ -21,6 +21,7 @@ def get_discrepancy_embed(account: dict, correct_elo: int) -> discord.Embed:
 
 def adapt_current_game_data(data: dict):
     return {
+        "endOfGameResult": True, # NOTE: not sure how I want to do this
         "match_id": data["gameId"],
         "queue_id": data["gameQueueConfigId"],
         "start_time": data["gameStartTime"] // 1000,
