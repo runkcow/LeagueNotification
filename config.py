@@ -69,7 +69,9 @@ TRANSLATE_ACCOUNT_DTO = {
     "tagLine"  : "tag"
 }
 
-PC_TEXT_WRAP = 45
+# NOTE: discord embed rendering changing?
+#       previously 45
+PC_TEXT_WRAP = 44
 
 TEAM_NAME_LEN = 4
 TEAM_ID = {

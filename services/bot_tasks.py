@@ -116,13 +116,21 @@ async def check_game_status(client: discord.Client):
         results = dict(zip(coro.keys(), await asyncio.gather(*coro.values(), return_exceptions=True)))
         for puuid, res in results.items():
             if not res.success:
+                # NOTE: shoehorned in to fix edge case
+                #       for some reason, players can get into games that loses existence
+                #       these games cannot be accessed and are forbidden, don't know what causes this
+                if res.data == "Forbidden":
+                    # TODO: also implement a single dao transaction for this
+                    account_dao.update_account_match_id(puuid, None)
+                    account_dao.update_account_last_match_id(puuid, info[puuid]["match_id"])
+                    account_dao.update_server_message(puuid, server["server"], None)
                 # NOTE: not sure if this is the behaviour i want
                 #       for some reason, sometimes, it fails to grab the past match
                 #       i believe its because it hits it right as the match ends
                 #       so the player is not in an active game but their match hasn't been added to past games yet
                 #       which is why it returns no data
                 #       should be fine to do this since it'll just try again next cycle update 
-                info[puuid]["edge"] == 0 
+                info[puuid]["edge"] = 0 
                 continue
             info[puuid]["data"] = game_embed.adapt_past_game_data(res.data) 
         
@@ -144,12 +152,12 @@ async def check_game_status(client: discord.Client):
             if info[puuid]["edge"] == 0:
                 continue
             if info[puuid]["data"] is None:
-                print(f'Strange Error : {puuid} | {info[puuid]} somehow has an edge while having no game data')
+                print(f'Strange Error : {puuid} | {info[puuid]} : somehow has an edge while having no game data')
                 continue
             # NOTE: this should only happen when latest match is different, no detected edges 
             #       however, it'd look like a falling edge
             if not info[puuid]["data"]["endOfGameResult"]:
-                print(f'Strange Error : {puuid} | {info[puuid]} game abort unexpected')
+                print(f'Strange Error : {puuid} | {info[puuid]} : game abort unexpected')
                 account_dao.update_account_last_match_id(puuid, info[puuid]["match_id"])
                 continue
             discrepancy = 0 if info[puuid]["edge"] == -1 else info[puuid]["data"]["players"][puuid]["elo"] - account["elo"]
