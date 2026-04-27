@@ -123,7 +123,8 @@ async def check_game_status(client: discord.Client):
                     # TODO: also implement a single dao transaction for this
                     account_dao.update_account_match_id(puuid, None)
                     account_dao.update_account_last_match_id(puuid, info[puuid]["match_id"])
-                    account_dao.update_server_message(puuid, server["server"], None)
+                    for server in account_dao.get_account_servers(puuid):
+                        account_dao.update_server_message(puuid, server["server"], None)
                 # NOTE: not sure if this is the behaviour i want
                 #       for some reason, sometimes, it fails to grab the past match
                 #       i believe its because it hits it right as the match ends
@@ -164,27 +165,29 @@ async def check_game_status(client: discord.Client):
             game = game_embed.game_factory(account, info[puuid]["data"])
             embedmsg = game.render_embed()
             try:
-                servers = account_dao.get_account_servers(puuid)
-                for server in servers:
+                for server in account_dao.get_account_servers(puuid):
                     try:
+                        guild = client.get_guild(int(server["server"]))
+                        if not guild: # NOTE: kind of a bandage solution compared to just running bot_tasks after bot has loaded
+                            continue
                         if discrepancy != 0:
-                            await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).send(embed=game_embed.get_discrepancy_embed(account, info[puuid]["data"]["players"][puuid]["elo"]))
+                            await guild.get_channel(int(server["channel"])).send(embed=game_embed.get_discrepancy_embed(account, info[puuid]["data"]["players"][puuid]["elo"]))
                             account_dao.update_account_elo(puuid, info[puuid]["data"]["players"][puuid]["elo"])
                         # TODO: make dedicated dao methods for these for atomicity
                         if info[puuid]["edge"] == 1:
-                            msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).send(embed=embedmsg)
+                            msg = await guild.get_channel(int(server["channel"])).send(embed=embedmsg)
                             account_dao.update_account_match_id(puuid, info[puuid]["data"]["match_id"])
                             account_dao.update_server_message(puuid, server["server"], msg.id)
                         if info[puuid]["edge"] == -1:
                             if server["message"] is not None:
-                                msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).fetch_message(int(server["message"]))
+                                msg = await guild.get_channel(int(server["channel"])).fetch_message(int(server["message"]))
                                 await msg.edit(embed=embedmsg)
                                 account_dao.update_account_match_id(puuid, None)
                                 if account["elo"] != info[puuid]["data"]["players"][puuid]["elo"]:
                                     account_dao.update_account_elo(puuid, info[puuid]["data"]["players"][puuid]["elo"])
                                 account_dao.update_server_message(puuid, server["server"], None)
                             else:
-                                msg = await client.get_guild(int(server["server"])).get_channel(int(server["channel"])).send(embed=embedmsg)
+                                msg = await guild.get_channel(int(server["channel"])).send(embed=embedmsg)
                                 if account["elo"] != info[puuid]["data"]["players"][puuid]["elo"]:
                                     account_dao.update_account_elo(puuid, info[puuid]["data"]["players"][puuid]["elo"])
                         account_dao.update_account_last_match_id(puuid, info[puuid]["match_id"])
