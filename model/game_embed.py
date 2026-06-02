@@ -154,7 +154,7 @@ class Game(ABC):
         if finished:
             description.append(f' - <t:{data["end_time"]}:t>')
             description.append(f'\nKDA: {dispdata["kda"][account["puuid"]]}')
-        description.append(f'\n{riot_api.queue_id[data["queue_id"]]}')
+        description.append(f'\n{riot_api.queue_id.get(data["queue_id"], data["queue_id"])}')
         if data["queue_id"] == 420: # NOTE: this number may need to be updated in the future        
             description.append(f'\n{helper.display_elo(data["players"][account["puuid"]]["elo"])}')
         

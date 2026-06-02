@@ -1,5 +1,6 @@
 
 FROM python:3.12-slim
+RUN apt-get install -y tzdata
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
