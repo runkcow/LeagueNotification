@@ -71,7 +71,8 @@ TRANSLATE_ACCOUNT_DTO = {
 
 # NOTE: discord embed rendering changing?
 #       previously 45
-PC_TEXT_WRAP = 44
+#       previously 44
+PC_TEXT_WRAP = 43
 
 TEAM_NAME_LEN = 4
 TEAM_ID = {
