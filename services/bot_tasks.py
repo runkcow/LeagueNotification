@@ -199,6 +199,8 @@ async def check_game_status(client: discord.Client):
                 continue
     except sqlite3.Error as e:
         print("Error @ bot_tasks.check_game_status accountDAO.get_account:", e)
+    except Exception as e:
+        print("Unexpected Error @ bot_tasks.check_game_status:", e)
 
 def start_bot_tasks(client: discord.Client):
     if not check_league_constants.is_running():
